@@ -11,6 +11,7 @@ export type LivestreamSessionStatus =
 
 export interface LivestreamTranscriptEntry {
   id: string
+  lowConfidence?: boolean
   text: string
   timestampMs: number
 }

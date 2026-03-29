@@ -12,7 +12,7 @@ import {
   dedupeBoundaryText,
   normalizeWhitespace,
 } from "@/lib/transcript-text-utils"
-import { translateAudioChunk } from "@/lib/groq-translation"
+import { assessGroqTranslation, translateAudioChunk } from "@/lib/groq-translation"
 
 type LivestreamEvent =
   | { type: "segment"; entry: LivestreamTranscriptEntry }
@@ -332,7 +332,7 @@ class LivestreamSession {
     void this.processQueue()
   }
 
-  private appendSegment(text: string) {
+  private appendSegment(text: string, lowConfidence = false) {
     const nextText = normalizeWhitespace(text)
     if (!nextText) {
       return
@@ -347,6 +347,7 @@ class LivestreamSession {
     const timestampMs = this.startedAtMs ? Date.now() - this.startedAtMs : 0
     const entry: LivestreamTranscriptEntry = {
       id: `${Date.now()}-${this.history.length}`,
+      lowConfidence,
       text: dedupedText,
       timestampMs,
     }
@@ -391,11 +392,14 @@ class LivestreamSession {
         context: this.committedTranslations.join(" ").trim(),
       })
 
-      if (payload.text) {
-        this.appendSegment(payload.text)
-      }
       if (isInactiveStatus(this.status as LivestreamSessionStatus)) {
         return
+      }
+
+      const assessment = assessGroqTranslation(payload)
+
+      if (assessment.text) {
+        this.appendSegment(assessment.text, assessment.lowConfidence)
       }
       this.setStatus("connected")
     } catch (error) {
@@ -416,10 +420,10 @@ class LivestreamSession {
       return
     }
 
+    this.setStatus("paused")
     this.stopIngestProcess()
     this.audioBuffer = Buffer.alloc(0)
     this.chunkQueue = []
-    this.setStatus("paused")
   }
 
   async resume() {

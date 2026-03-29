@@ -3,6 +3,11 @@
 import { MicVAD } from "@ricky0123/vad-web"
 import { useCallback, useRef, useState } from "react"
 
+import {
+  assessGroqTranslation,
+  type GroqTranslationPayload,
+} from "@/lib/groq-translation"
+
 type GroqStatus =
   | "idle"
   | "connecting"
@@ -14,7 +19,7 @@ type GroqStatus =
 
 interface GroqConfig {
   onPartialTranscript?: (data: { text?: string }) => void
-  onFinalTranscript?: (data: { text?: string }) => void
+  onFinalTranscript?: (data: { lowConfidence?: boolean; text?: string }) => void
   onError?: (error: Error | Event) => void
 }
 
@@ -37,16 +42,6 @@ interface GroqHook {
   resume: () => Promise<void>
 }
 
-interface GroqSegment {
-  text?: string
-  start?: number
-  end?: number
-  avg_logprob?: number
-  no_speech_prob?: number
-}
-
-const MAX_NO_SPEECH_PROB = 0.6
-const MIN_AVG_LOGPROB = -0.9
 const MAX_SPEECH_SEGMENT_MS = 12000
 const VAD_REDEMPTION_MS = 650
 const VAD_MIN_SPEECH_MS = 300
@@ -146,57 +141,6 @@ function getAudioTail(
   )
 
   return tailLength > 0 ? samples.slice(samples.length - tailLength) : new Float32Array()
-}
-
-function shouldKeepSegment(segment: GroqSegment, text: string): boolean {
-  if (!text) {
-    return false
-  }
-
-  if (
-    typeof segment.no_speech_prob === "number" &&
-    segment.no_speech_prob > MAX_NO_SPEECH_PROB
-  ) {
-    return false
-  }
-
-  if (
-    typeof segment.avg_logprob === "number" &&
-    segment.avg_logprob < MIN_AVG_LOGPROB
-  ) {
-    return false
-  }
-
-  return true
-}
-
-function getStableText(payload: unknown): string {
-  const topLevelText =
-    payload &&
-    typeof payload === "object" &&
-    typeof (payload as { text?: string }).text === "string"
-      ? normalizeWhitespace((payload as { text: string }).text)
-      : ""
-
-  if (
-    payload &&
-    typeof payload === "object" &&
-    Array.isArray((payload as { segments?: GroqSegment[] }).segments)
-  ) {
-    const segments = (payload as { segments: GroqSegment[] }).segments
-    const stableSegments = segments
-      .map((segment) => {
-        const text = normalizeWhitespace(typeof segment.text === "string" ? segment.text : "")
-        return shouldKeepSegment(segment, text) ? text : ""
-      })
-      .filter(Boolean)
-
-    if (stableSegments.length > 0) {
-      return topLevelText || normalizeWhitespace(stableSegments.join(" "))
-    }
-  }
-
-  return topLevelText
 }
 
 function normalizeWord(word: string): string {
@@ -349,8 +293,9 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
         )
       }
 
-      const payload = await response.json()
-      const stableText = getStableText(payload)
+      const payload = (await response.json()) as GroqTranslationPayload
+      const assessment = assessGroqTranslation(payload)
+      const stableText = assessment.text
 
       if (stableText) {
         const previousText =
@@ -364,7 +309,10 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
             ...committedTranslationsRef.current,
             dedupedText,
           ]
-          config.onFinalTranscript?.({ text: dedupedText })
+          config.onFinalTranscript?.({
+            lowConfidence: assessment.lowConfidence,
+            text: dedupedText,
+          })
         }
       }
     } catch (error) {

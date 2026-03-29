@@ -5,6 +5,23 @@ import type { TranscriptEntry } from "@/components/transcriber-ui"
 
 export const runtime = "nodejs"
 
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ sessionId: string }> }
+) {
+  const { sessionId } = await params
+  const snapshot = sharedSessionManager.getSnapshotById(sessionId)
+
+  if (!snapshot) {
+    return NextResponse.json(
+      { error: "Shared session not found." },
+      { status: 404 }
+    )
+  }
+
+  return NextResponse.json({ snapshot })
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ sessionId: string }> }

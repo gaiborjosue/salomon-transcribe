@@ -15,6 +15,7 @@ import { Spinner } from "@/components/ui/spinner"
 
 export interface TranscriptEntry {
   id: string
+  lowConfidence?: boolean
   text: string
   timestampMs: number
 }
@@ -118,91 +119,121 @@ function formatElapsedTime(timestampMs: number): string {
 export const BackgroundAura = React.memo(
   ({ status, isConnected }: { status: string; isConnected: boolean }) => {
     const isActive = status === "connecting" || isConnected
+    const isPaused = status === "paused"
+
+    const renderAuraVariant = (variant: "active" | "paused") => {
+      const pausedVariant = variant === "paused"
+
+      return (
+        <div
+          className={cn(
+            "absolute inset-0 transition-opacity duration-700 ease-out",
+            pausedVariant === isPaused ? "opacity-100" : "opacity-0"
+          )}
+        >
+          <div
+            className="absolute bottom-0 left-1/2 -translate-x-1/2"
+            style={{
+              width: "130%",
+              height: "20vh",
+              background: pausedVariant
+                ? "radial-gradient(ellipse 100% 100% at 50% 100%, rgba(148, 163, 184, 0.26) 0%, rgba(100, 116, 139, 0.22) 40%, rgba(71, 85, 105, 0.2) 72%, transparent 100%)"
+                : "radial-gradient(ellipse 100% 100% at 50% 100%, rgba(34, 211, 238, 0.5) 0%, rgba(168, 85, 247, 0.4) 35%, rgba(251, 146, 60, 0.5) 70%, transparent 100%)",
+              filter: pausedVariant ? "blur(88px)" : "blur(80px)",
+            }}
+          />
+          <div
+            className={cn(
+              "absolute bottom-0 left-1/2 -translate-x-1/2 animate-pulse",
+              pausedVariant ? "opacity-55" : isConnected ? "opacity-100" : "opacity-80"
+            )}
+            style={{
+              width: "100%",
+              height: "18vh",
+              background: pausedVariant
+                ? "radial-gradient(ellipse 100% 100% at 50% 100%, rgba(226, 232, 240, 0.18) 0%, rgba(148, 163, 184, 0.16) 45%, transparent 100%)"
+                : "radial-gradient(ellipse 100% 100% at 50% 100%, rgba(134, 239, 172, 0.5) 0%, rgba(192, 132, 252, 0.4) 50%, transparent 100%)",
+              filter: pausedVariant ? "blur(72px)" : "blur(60px)",
+              animationDuration: pausedVariant ? "6s" : "4s",
+            }}
+          />
+          <div
+            className="absolute bottom-0 left-0"
+            style={{
+              width: "25vw",
+              height: "30vh",
+              background: pausedVariant
+                ? "radial-gradient(circle at 0% 100%, rgba(148, 163, 184, 0.2) 0%, rgba(100, 116, 139, 0.14) 30%, transparent 60%)"
+                : "radial-gradient(circle at 0% 100%, rgba(34, 211, 238, 0.5) 0%, rgba(134, 239, 172, 0.3) 30%, transparent 60%)",
+              filter: pausedVariant ? "blur(78px)" : "blur(70px)",
+            }}
+          />
+          <div
+            className="absolute bottom-0 -left-8"
+            style={{
+              width: "20vw",
+              height: "45vh",
+              background: pausedVariant
+                ? "radial-gradient(ellipse 50% 100% at 10% 100%, rgba(148, 163, 184, 0.16) 0%, rgba(100, 116, 139, 0.12) 25%, transparent 60%)"
+                : "radial-gradient(ellipse 50% 100% at 10% 100%, rgba(34, 211, 238, 0.4) 0%, rgba(134, 239, 172, 0.25) 25%, transparent 60%)",
+              filter: pausedVariant ? "blur(68px)" : "blur(60px)",
+              animation: pausedVariant
+                ? "pulseGlow 7s ease-in-out infinite alternate"
+                : "pulseGlow 5s ease-in-out infinite alternate",
+            }}
+          />
+          <div
+            className="absolute right-0 bottom-0"
+            style={{
+              width: "25vw",
+              height: "30vh",
+              background: pausedVariant
+                ? "radial-gradient(circle at 100% 100%, rgba(148, 163, 184, 0.2) 0%, rgba(100, 116, 139, 0.14) 30%, transparent 60%)"
+                : "radial-gradient(circle at 100% 100%, rgba(251, 146, 60, 0.5) 0%, rgba(251, 146, 60, 0.3) 30%, transparent 60%)",
+              filter: pausedVariant ? "blur(78px)" : "blur(70px)",
+            }}
+          />
+          <div
+            className="absolute -right-8 bottom-0"
+            style={{
+              width: "20vw",
+              height: "45vh",
+              background: pausedVariant
+                ? "radial-gradient(ellipse 50% 100% at 90% 100%, rgba(148, 163, 184, 0.16) 0%, rgba(100, 116, 139, 0.12) 25%, transparent 60%)"
+                : "radial-gradient(ellipse 50% 100% at 90% 100%, rgba(251, 146, 60, 0.4) 0%, rgba(192, 132, 252, 0.25) 25%, transparent 60%)",
+              filter: pausedVariant ? "blur(68px)" : "blur(60px)",
+              animation: pausedVariant
+                ? "pulseGlow 7s ease-in-out infinite alternate-reverse"
+                : "pulseGlow 5s ease-in-out infinite alternate-reverse",
+            }}
+          />
+          <div
+            className="absolute bottom-0 left-1/2 -translate-x-1/2"
+            style={{
+              width: "100%",
+              height: "15vh",
+              background: pausedVariant
+                ? "linear-gradient(90deg, rgba(148, 163, 184, 0.14) 0%, rgba(100, 116, 139, 0.16) 50%, rgba(148, 163, 184, 0.14) 100%)"
+                : "linear-gradient(90deg, rgba(34, 211, 238, 0.3) 0%, rgba(168, 85, 247, 0.3) 30%, rgba(251, 146, 60, 0.3) 60%, rgba(134, 239, 172, 0.3) 100%)",
+              filter: pausedVariant ? "blur(36px)" : "blur(30px)",
+              animation: pausedVariant
+                ? "shimmer 12s linear infinite"
+                : "shimmer 8s linear infinite",
+            }}
+          />
+        </div>
+      )
+    }
 
     return (
       <div
         className={cn(
-          "pointer-events-none fixed inset-0 transition-opacity duration-300 ease-out",
+          "pointer-events-none fixed inset-0 z-0 transition-opacity duration-300 ease-out",
           isActive ? "opacity-100" : "opacity-0"
         )}
       >
-        <div
-          className="absolute bottom-0 left-1/2 -translate-x-1/2"
-          style={{
-            width: "130%",
-            height: "20vh",
-            background:
-              "radial-gradient(ellipse 100% 100% at 50% 100%, rgba(34, 211, 238, 0.5) 0%, rgba(168, 85, 247, 0.4) 35%, rgba(251, 146, 60, 0.5) 70%, transparent 100%)",
-            filter: "blur(80px)",
-          }}
-        />
-        <div
-          className={cn(
-            "absolute bottom-0 left-1/2 -translate-x-1/2 animate-pulse",
-            isConnected ? "opacity-100" : "opacity-80"
-          )}
-          style={{
-            width: "100%",
-            height: "18vh",
-            background:
-              "radial-gradient(ellipse 100% 100% at 50% 100%, rgba(134, 239, 172, 0.5) 0%, rgba(192, 132, 252, 0.4) 50%, transparent 100%)",
-            filter: "blur(60px)",
-            animationDuration: "4s",
-          }}
-        />
-        <div
-          className="absolute bottom-0 left-0"
-          style={{
-            width: "25vw",
-            height: "30vh",
-            background:
-              "radial-gradient(circle at 0% 100%, rgba(34, 211, 238, 0.5) 0%, rgba(134, 239, 172, 0.3) 30%, transparent 60%)",
-            filter: "blur(70px)",
-          }}
-        />
-        <div
-          className="absolute bottom-0 -left-8"
-          style={{
-            width: "20vw",
-            height: "45vh",
-            background:
-              "radial-gradient(ellipse 50% 100% at 10% 100%, rgba(34, 211, 238, 0.4) 0%, rgba(134, 239, 172, 0.25) 25%, transparent 60%)",
-            filter: "blur(60px)",
-            animation: "pulseGlow 5s ease-in-out infinite alternate",
-          }}
-        />
-        <div
-          className="absolute right-0 bottom-0"
-          style={{
-            width: "25vw",
-            height: "30vh",
-            background:
-              "radial-gradient(circle at 100% 100%, rgba(251, 146, 60, 0.5) 0%, rgba(251, 146, 60, 0.3) 30%, transparent 60%)",
-            filter: "blur(70px)",
-          }}
-        />
-        <div
-          className="absolute -right-8 bottom-0"
-          style={{
-            width: "20vw",
-            height: "45vh",
-            background:
-              "radial-gradient(ellipse 50% 100% at 90% 100%, rgba(251, 146, 60, 0.4) 0%, rgba(192, 132, 252, 0.25) 25%, transparent 60%)",
-            filter: "blur(60px)",
-            animation: "pulseGlow 5s ease-in-out infinite alternate-reverse",
-          }}
-        />
-        <div
-          className="absolute bottom-0 left-1/2 -translate-x-1/2"
-          style={{
-            width: "100%",
-            height: "15vh",
-            background:
-              "linear-gradient(90deg, rgba(34, 211, 238, 0.3) 0%, rgba(168, 85, 247, 0.3) 30%, rgba(251, 146, 60, 0.3) 60%, rgba(134, 239, 172, 0.3) 100%)",
-            filter: "blur(30px)",
-            animation: "shimmer 8s linear infinite",
-          }}
-        />
+        {renderAuraVariant("active")}
+        {renderAuraVariant("paused")}
       </div>
     )
   }
@@ -414,12 +445,25 @@ export const TranscriberTranscript = React.memo(
                               key={entry.id}
                               className="grid grid-cols-[3.5rem_1fr] items-start gap-3 sm:grid-cols-[4.5rem_1fr] sm:gap-4"
                             >
-                              <div className="text-muted-foreground/70 pt-1 text-[11px] font-medium tracking-[0.16em] uppercase">
-                                {formatElapsedTime(entry.timestampMs)}
+                              <div className="pt-1">
+                                <div className="text-muted-foreground/70 text-[11px] font-medium tracking-[0.16em] uppercase">
+                                  {formatElapsedTime(entry.timestampMs)}
+                                </div>
+                                {entry.lowConfidence ? (
+                                  <div className="mt-1 flex items-center gap-1 text-[10px] text-amber-200/55">
+                                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-200/65" />
+                                    <span className="tracking-[0.14em] uppercase">
+                                      soft
+                                    </span>
+                                  </div>
+                                ) : null}
                               </div>
                               <div
                                 className={cn(
-                                  "text-foreground/90 text-xl leading-relaxed font-light",
+                                  "text-xl leading-relaxed font-light",
+                                  entry.lowConfidence
+                                    ? "text-foreground/78"
+                                    : "text-foreground/90",
                                   error && "text-red-500"
                                 )}
                               >

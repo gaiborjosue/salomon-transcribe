@@ -13,6 +13,7 @@ export interface SharedSessionSnapshot {
   sourceTitle?: string
   sourceType: SharedSourceType
   status: SharedSessionStatus
+  viewerCount: number
 }
 
 type SharedSessionEvent =
@@ -81,6 +82,7 @@ class SharedSessionManager {
       sourceTitle: session.sourceTitle,
       sourceType: session.sourceType,
       status: session.status,
+      viewerCount: session.listeners.size,
     }
   }
 
@@ -145,6 +147,13 @@ class SharedSessionManager {
     return this.createSnapshot(session)
   }
 
+  getSnapshotById(id: string) {
+    this.cleanupExpiredSessions()
+    const session = this.sessions.get(id)
+    if (!session) return undefined
+    return this.createSnapshot(session)
+  }
+
   subscribe(sessionId: string, listener: (event: SharedSessionEvent) => void) {
     const session = this.sessions.get(sessionId)
     if (!session) {
@@ -152,7 +161,12 @@ class SharedSessionManager {
     }
 
     session.listeners.add(listener)
+    session.updatedAt = Date.now()
     listener({
+      type: "snapshot",
+      snapshot: this.createSnapshot(session),
+    })
+    this.emit(session, {
       type: "snapshot",
       snapshot: this.createSnapshot(session),
     })
@@ -160,6 +174,10 @@ class SharedSessionManager {
     return () => {
       session.listeners.delete(listener)
       session.updatedAt = Date.now()
+      this.emit(session, {
+        type: "snapshot",
+        snapshot: this.createSnapshot(session),
+      })
       this.cleanupExpiredSessions()
     }
   }

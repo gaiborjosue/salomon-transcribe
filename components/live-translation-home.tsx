@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Copy, Mic, RadioTower, Share2 } from "lucide-react"
+import { Copy, Mic, RadioTower, Share2, Users } from "lucide-react"
 import { toast } from "sonner"
 
 import {
@@ -60,6 +60,7 @@ interface SharedSessionSnapshot {
   sourceTitle?: string
   sourceType: InputSource
   status: SharedSessionStatus
+  viewerCount: number
 }
 
 interface HostShareSession {
@@ -116,6 +117,7 @@ export default function LiveTranslationHome() {
   const [hostShareSession, setHostShareSession] = useState<HostShareSession | null>(
     null
   )
+  const [hostViewerCount, setHostViewerCount] = useState(0)
   const [viewerSession, setViewerSession] = useState<ViewerSession | null>(null)
 
   const activeSourceRef = useRef<InputSource | null>(null)
@@ -178,6 +180,45 @@ export default function LiveTranslationHome() {
     transcriptEntriesRef.current = transcriptEntries
   }, [transcriptEntries])
 
+  useEffect(() => {
+    if (!hostShareSession) {
+      setHostViewerCount(0)
+      return
+    }
+
+    let cancelled = false
+
+    const fetchViewerCount = async () => {
+      try {
+        const response = await fetch(`/api/shared-sessions/${hostShareSession.id}`, {
+          method: "GET",
+          cache: "no-store",
+        })
+        const payload = (await response.json().catch(() => null)) as
+          | { error?: string; snapshot?: SharedSessionSnapshot }
+          | null
+
+        if (!response.ok || !payload?.snapshot || cancelled) {
+          return
+        }
+
+        setHostViewerCount(payload.snapshot.viewerCount)
+      } catch {
+        // noop
+      }
+    }
+
+    void fetchViewerCount()
+    const interval = window.setInterval(() => {
+      void fetchViewerCount()
+    }, 4000)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+    }
+  }, [hostShareSession])
+
   const closeViewerStream = useCallback(() => {
     viewerEventSourceRef.current?.close()
     viewerEventSourceRef.current = null
@@ -210,7 +251,7 @@ export default function LiveTranslationHome() {
   }, [])
 
   const onMicFinalTranscript = useCallback(
-    (data: { text?: string }) => {
+    (data: { lowConfidence?: boolean; text?: string }) => {
       if (
         activeSourceRef.current !== "microphone" ||
         micConnectionStateRef.current !== "connected"
@@ -239,9 +280,18 @@ export default function LiveTranslationHome() {
       setTranscriptEntries((prev) => {
         const previousEntry = prev[prev.length - 1]
         if (shouldMergeIntoPrevious(previousEntry, finalizedText, transcriptionMode)) {
+          const mergedEntry = mergeTranscriptEntry(
+            previousEntry as TranscriptEntry,
+            finalizedText
+          )
           return [
             ...prev.slice(0, -1),
-            mergeTranscriptEntry(previousEntry as TranscriptEntry, finalizedText),
+            {
+              ...mergedEntry,
+              lowConfidence:
+                Boolean((previousEntry as TranscriptEntry | undefined)?.lowConfidence) ||
+                Boolean(data.lowConfidence),
+            },
           ]
         }
 
@@ -249,6 +299,7 @@ export default function LiveTranslationHome() {
           ...prev,
           {
             id: `${now}-${prev.length}`,
+            lowConfidence: Boolean(data.lowConfidence),
             text: finalizedText,
             timestampMs,
           },
@@ -299,9 +350,18 @@ export default function LiveTranslationHome() {
       setTranscriptEntries((prev) => {
         const previousEntry = prev[prev.length - 1]
         if (shouldMergeIntoPrevious(previousEntry, entry.text, transcriptionMode)) {
+          const mergedEntry = mergeTranscriptEntry(
+            previousEntry as TranscriptEntry,
+            entry.text
+          )
           return [
             ...prev.slice(0, -1),
-            mergeTranscriptEntry(previousEntry as TranscriptEntry, entry.text),
+            {
+              ...mergedEntry,
+              lowConfidence:
+                Boolean((previousEntry as TranscriptEntry | undefined)?.lowConfidence) ||
+                Boolean(entry.lowConfidence),
+            },
           ]
         }
 
@@ -555,6 +615,7 @@ export default function LiveTranslationHome() {
     }
 
     setHostShareSession(nextSession)
+    setHostViewerCount(payload.snapshot.viewerCount)
     lastHostSyncSignatureRef.current = ""
     return nextSession
   }, [hostShareSession, sourceTitle])
@@ -615,6 +676,7 @@ export default function LiveTranslationHome() {
       // noop
     } finally {
       setHostShareSession(null)
+      setHostViewerCount(0)
       lastHostSyncSignatureRef.current = ""
     }
   }, [hostShareSession])
@@ -1001,13 +1063,13 @@ export default function LiveTranslationHome() {
     <div className="dark text-foreground min-h-screen w-full bg-[#1f1f1f]">
       <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-col items-center justify-center px-4 py-10 sm:px-8">
         <div className="relative flex min-h-screen w-full flex-col items-center justify-center gap-8">
-          {hasContent ? (
+          {isSessionActive ? (
             <BackgroundAura
               status={currentStatus}
-              isConnected={Boolean(isSessionActive && !viewerSession)}
+              isConnected={Boolean(isSessionActive)}
             />
           ) : null}
-          <div className="relative flex min-h-[350px] w-full flex-1 items-center justify-center overflow-hidden">
+          <div className="relative z-10 flex min-h-[350px] w-full flex-1 items-center justify-center overflow-hidden">
             <div
               className={cn(
                 "absolute inset-0 transition-opacity duration-250",
@@ -1048,6 +1110,12 @@ export default function LiveTranslationHome() {
                           <span className="text-sm">
                             {hostShareSession ? hostShareSession.code : "Share"}
                           </span>
+                          {hostShareSession ? (
+                            <span className="ml-1 inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-0.5 text-[11px] text-white/55">
+                              <Users className="h-3 w-3" />
+                              {hostViewerCount}
+                            </span>
+                          ) : null}
                         </Button>
                       ) : null}
                     </div>
@@ -1262,6 +1330,10 @@ export default function LiveTranslationHome() {
                 Best for others in the same service to join without processing the
                 same audio again.
               </p>
+              <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-white/10 px-3 py-1 text-xs text-white/55">
+                <Users className="h-3.5 w-3.5" />
+                {hostViewerCount} joined live
+              </div>
             </div>
           </div>
           <DrawerFooter>
