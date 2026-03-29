@@ -131,9 +131,9 @@ export async function translateAudioChunk({
   upstreamFormData.append("response_format", "verbose_json")
 
   const promptBase =
-    "Sermón cristiano en español. Traducción natural al inglés. Mantén nombres propios, términos bíblicos y referencias con ortografía clara."
+    "Spanish Christian sermon. Natural English translation. Preserve proper nouns, Bible references, and theological terms with clear spelling."
   const prompt = context
-    ? `${promptBase} Conserva continuidad con esta traducción reciente al inglés: ${context}`
+    ? `${promptBase} Keep continuity with this recent English translation context: ${context}`
     : promptBase
 
   upstreamFormData.append("prompt", prompt)

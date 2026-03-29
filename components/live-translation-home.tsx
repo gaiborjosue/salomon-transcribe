@@ -125,6 +125,7 @@ export default function LiveTranslationHome() {
   const micSessionStartedAtRef = useRef<number | null>(null)
   const micLastTranscriptRef = useRef("")
   const viewerEventSourceRef = useRef<EventSource | null>(null)
+  const hostSessionEventsRef = useRef<EventSource | null>(null)
   const transcriptEntriesRef = useRef<TranscriptEntry[]>([])
   const lastHostSyncSignatureRef = useRef("")
 
@@ -181,41 +182,35 @@ export default function LiveTranslationHome() {
   }, [transcriptEntries])
 
   useEffect(() => {
+    hostSessionEventsRef.current?.close()
+    hostSessionEventsRef.current = null
+
     if (!hostShareSession) {
       setHostViewerCount(0)
       return
     }
 
-    let cancelled = false
+    const eventSource = new EventSource(
+      `/api/shared-sessions/${hostShareSession.id}/events?viewer=0`
+    )
+    hostSessionEventsRef.current = eventSource
 
-    const fetchViewerCount = async () => {
-      try {
-        const response = await fetch(`/api/shared-sessions/${hostShareSession.id}`, {
-          method: "GET",
-          cache: "no-store",
-        })
-        const payload = (await response.json().catch(() => null)) as
-          | { error?: string; snapshot?: SharedSessionSnapshot }
-          | null
+    eventSource.addEventListener("snapshot", (event) => {
+      const snapshot = JSON.parse(
+        (event as MessageEvent<string>).data
+      ) as SharedSessionSnapshot
+      setHostViewerCount(snapshot.viewerCount)
+    })
 
-        if (!response.ok || !payload?.snapshot || cancelled) {
-          return
-        }
-
-        setHostViewerCount(payload.snapshot.viewerCount)
-      } catch {
-        // noop
-      }
+    eventSource.onerror = () => {
+      // Let EventSource retry automatically. No host-facing error needed here.
     }
 
-    void fetchViewerCount()
-    const interval = window.setInterval(() => {
-      void fetchViewerCount()
-    }, 4000)
-
     return () => {
-      cancelled = true
-      window.clearInterval(interval)
+      eventSource.close()
+      if (hostSessionEventsRef.current === eventSource) {
+        hostSessionEventsRef.current = null
+      }
     }
   }, [hostShareSession])
 
@@ -323,6 +318,9 @@ export default function LiveTranslationHome() {
   const groqTranslator = useGroqRealtimeTranslation(
     useMemo(
       () => ({
+        onClassifierFallback: () => {
+          toast("On-device classifier unavailable. Using server instead.")
+        },
         onPartialTranscript: onMicPartialTranscript,
         onFinalTranscript: onMicFinalTranscript,
         onError: onMicError,
@@ -741,6 +739,8 @@ export default function LiveTranslationHome() {
   useEffect(() => {
     return () => {
       closeViewerStream()
+      hostSessionEventsRef.current?.close()
+      hostSessionEventsRef.current = null
     }
   }, [closeViewerStream])
 
@@ -870,6 +870,7 @@ export default function LiveTranslationHome() {
 
       try {
         await groqTranslator.connect({
+          classifierMode: "device",
           microphone: {
             echoCancellation: false,
             noiseSuppression: false,

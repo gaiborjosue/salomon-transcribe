@@ -11,6 +11,8 @@ export async function GET(
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
   const { sessionId } = await params
+  const url = new URL(request.url)
+  const countAsViewer = url.searchParams.get("viewer") !== "0"
   const session = sharedSessionManager.getSessionById(sessionId)
 
   if (!session) {
@@ -24,22 +26,26 @@ export async function GET(
         controller.enqueue(encoder.encode(serializeSseEvent(eventName, payload)))
       }
 
-      const unsubscribe = sharedSessionManager.subscribe(sessionId, (event) => {
-        if (event.type === "snapshot") {
-          send("snapshot", event.snapshot)
-          return
-        }
+      const unsubscribe = sharedSessionManager.subscribe(
+        sessionId,
+        (event) => {
+          if (event.type === "snapshot") {
+            send("snapshot", event.snapshot)
+            return
+          }
 
-        if (event.type === "entry") {
-          send("entry", event.entry)
-          return
-        }
+          if (event.type === "entry") {
+            send("entry", event.entry)
+            return
+          }
 
-        send("meta", {
-          sourceTitle: event.sourceTitle,
-          status: event.status,
-        })
-      })
+          send("meta", {
+            sourceTitle: event.sourceTitle,
+            status: event.status,
+          })
+        },
+        { countAsViewer }
+      )
 
       if (!unsubscribe) {
         controller.close()

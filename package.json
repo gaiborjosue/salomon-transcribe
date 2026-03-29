@@ -40,6 +40,7 @@
     "@radix-ui/react-toggle-group": "1.1.11",
     "@radix-ui/react-tooltip": "1.2.8",
     "@ricky0123/vad-web": "^0.0.30",
+    "@tensorflow/tfjs": "^4.22.0",
     "@vercel/analytics": "1.6.1",
     "ai": "^6.0.141",
     "autoprefixer": "^10.4.20",

@@ -92,17 +92,52 @@ const BOOK_NAMES = [
   "Revelation",
 ]
 
+const ORDINAL_BOOK_BASES = [
+  "Chronicles",
+  "Corinthians",
+  "John",
+  "Kings",
+  "Peter",
+  "Samuel",
+  "Thessalonians",
+  "Timothy",
+]
+
 const escapedBooks = BOOK_NAMES.sort((left, right) => right.length - left.length)
   .map((book) => book.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
   .join("|")
 
+const escapedOrdinalBookBases = ORDINAL_BOOK_BASES.sort(
+  (left, right) => right.length - left.length
+)
+  .map((book) => book.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+  .join("|")
+
+const ORDINAL_BOOK_PATTERN = `(?:first|second|third)(?:\\s+of)?\\s+(?:${escapedOrdinalBookBases})`
+
 const CANDIDATE_REFERENCE_PATTERN = new RegExp(
-  `\\b(?:${escapedBooks})\\s+\\d{1,3}(?:\\s*[:.]\\s*\\d{1,3}(?:\\s*(?:-|–|—|to|through)\\s*\\d{1,3})?)?`,
+  `\\b(?:${ORDINAL_BOOK_PATTERN}|${escapedBooks})\\s+\\d{1,3}(?:\\s*[:.]\\s*\\d{1,3}(?:\\s*(?:-|–|—|to|through)\\s*\\d{1,3})?)?`,
   "gi"
 )
 
+function normalizeOrdinalBookPrefix(candidate: string): string {
+  return candidate.replace(
+    /\b(first|second|third)\s+(?:of\s+)?(Chronicles|Corinthians|John|Kings|Peter|Samuel|Thessalonians|Timothy)\b/gi,
+    (_, ordinal: string, book: string) => {
+      const normalizedOrdinal =
+        ordinal.toLowerCase() === "first"
+          ? "1"
+          : ordinal.toLowerCase() === "second"
+            ? "2"
+            : "3"
+
+      return `${normalizedOrdinal} ${book}`
+    }
+  )
+}
+
 function normalizeReferenceCandidate(candidate: string): string {
-  return candidate
+  return normalizeOrdinalBookPrefix(candidate)
     .replace(/\bPsalms\b/gi, "Psalm")
     .replace(/\bSong of Songs\b/gi, "Song of Solomon")
     .replace(/(\d)\s*\.\s*(\d)/g, "$1:$2")

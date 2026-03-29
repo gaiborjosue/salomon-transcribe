@@ -1,6 +1,7 @@
 "use client"
 
 import { MicVAD } from "@ricky0123/vad-web"
+import * as tf from "@tensorflow/tfjs"
 import { useCallback, useRef, useState } from "react"
 
 import {
@@ -18,12 +19,18 @@ type GroqStatus =
   | "error"
 
 interface GroqConfig {
+  onClassifierFallback?: (details: {
+    from: "device"
+    reason?: string
+    to: "server"
+  }) => void
   onPartialTranscript?: (data: { text?: string }) => void
   onFinalTranscript?: (data: { lowConfidence?: boolean; text?: string }) => void
   onError?: (error: Error | Event) => void
 }
 
 interface ConnectOptions {
+  classifierMode?: "device" | "server"
   languageCode?: string
   microphone?: {
     echoCancellation?: boolean
@@ -42,6 +49,19 @@ interface GroqHook {
   resume: () => Promise<void>
 }
 
+interface GroqRouteResponse extends GroqTranslationPayload {
+  metrics?: {
+    classifierMs?: number
+    decision?: "mixed" | "music" | "speech"
+    groqMs?: number
+    musicScore?: number
+    speechScore?: number
+    topLabel?: string
+    totalMs?: number
+  }
+  skipped?: boolean
+}
+
 const MAX_SPEECH_SEGMENT_MS = 12000
 const VAD_REDEMPTION_MS = 650
 const VAD_MIN_SPEECH_MS = 300
@@ -56,6 +76,30 @@ const ORT_WASM_BASE_PATH =
   "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/"
 const VAD_ASSET_BASE_PATH =
   "https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.30/dist/"
+const BROWSER_YAMNET_MODEL_URL =
+  "https://www.kaggle.com/models/google/yamnet/TfJs/tfjs/1"
+const YAMNET_SPEECH_INDICES = [0, 1, 2, 3, 5, 12, 65]
+const YAMNET_MUSIC_INDICES = [
+  24, 25, 27, 29, 30, 32, 132, 133, 134, 135, 136, 137, 138, 139, 140, 147,
+  148, 149, 150, 151, 152, 157, 158, 159, 160, 162, 163, 170, 180, 184, 190,
+  209, 211, 212, 214, 222, 225, 228, 229, 232, 234, 235, 238, 240, 241, 242,
+  243, 244, 247, 248, 249, 251, 253, 254, 255, 256, 257, 259, 260, 262, 263,
+  264, 265, 267, 268, 269, 270, 271, 272, 273, 274, 275, 276,
+]
+const YAMNET_LABELS: Record<number, string> = {
+  0: "Speech",
+  2: "Conversation",
+  3: "Narration",
+  24: "Singing",
+  25: "Choir",
+  27: "Chant",
+  132: "Music",
+  249: "Vocal music",
+  253: "Christian music",
+  254: "Gospel music",
+  262: "Background music",
+  494: "Silence",
+}
 
 function getModeConfig(mode: ConnectOptions["transcriptionMode"]) {
   if (mode === "sermon") {
@@ -183,6 +227,82 @@ function dedupeBoundaryText(previousText: string, nextText: string): string {
   return trimmedNextText
 }
 
+interface DeviceClassification {
+  classifierMs: number
+  decision: "mixed" | "music" | "speech"
+  musicScore: number
+  speechScore: number
+  topIndex: number
+  topLabel: string
+}
+
+let browserYamnetPromise: Promise<tf.GraphModel> | null = null
+
+async function getBrowserYamnetModel() {
+  if (!browserYamnetPromise) {
+    browserYamnetPromise = (async () => {
+      await tf.ready()
+      return tf.loadGraphModel(BROWSER_YAMNET_MODEL_URL, { fromTFHub: true })
+    })()
+  }
+
+  return browserYamnetPromise
+}
+
+function sumIndices(data: Float32Array | Float32Array<ArrayBufferLike>, indices: number[]) {
+  let sum = 0
+  for (const index of indices) {
+    sum += data[index] ?? 0
+  }
+  return sum
+}
+
+function shouldSkipForMusic(classification: DeviceClassification) {
+  return (
+    classification.decision === "music" &&
+    classification.musicScore >= 0.32 &&
+    classification.speechScore <= 0.12
+  )
+}
+
+async function classifyOnDevice(samples: Float32Array): Promise<DeviceClassification> {
+  const model = await getBrowserYamnetModel()
+  const startedAt = performance.now()
+
+  const { meanScores, topIndex } = tf.tidy(() => {
+    const waveform = tf.tensor1d(samples)
+    const outputs = model.predict(waveform)
+    const scoresTensor = Array.isArray(outputs) ? outputs[0] : outputs
+    const meanTensor = (scoresTensor as tf.Tensor2D).mean(0)
+    const topIndexTensor = meanTensor.argMax()
+    const topIndexValue = topIndexTensor.dataSync()[0]
+    const scoreValues = Float32Array.from(meanTensor.dataSync())
+    return {
+      meanScores: scoreValues,
+      topIndex: topIndexValue,
+    }
+  })
+
+  const speechScore = sumIndices(meanScores, YAMNET_SPEECH_INDICES)
+  const musicScore = sumIndices(meanScores, YAMNET_MUSIC_INDICES)
+
+  let decision: DeviceClassification["decision"] = "mixed"
+  if (musicScore >= 0.32 && speechScore <= 0.12 && musicScore > speechScore * 1.8) {
+    decision = "music"
+  } else if (speechScore >= 0.18 || speechScore >= musicScore) {
+    decision = "speech"
+  }
+
+  return {
+    classifierMs: performance.now() - startedAt,
+    decision,
+    musicScore,
+    speechScore,
+    topIndex,
+    topLabel: YAMNET_LABELS[topIndex] || `Class ${topIndex}`,
+  }
+}
+
 export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
   const [status, setStatus] = useState<GroqStatus>("idle")
   const vadRef = useRef<MicVAD | null>(null)
@@ -199,6 +319,7 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
   const forcedFlushRequestedRef = useRef(false)
   const committedTranslationsRef = useRef<string[]>([])
   const pausedRef = useRef(false)
+  const activeClassifierModeRef = useRef<"device" | "server">("server")
 
   const clearForceFlushTimer = useCallback(() => {
     if (forceFlushTimerRef.current) {
@@ -278,6 +399,33 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
         formData.append("sourceLanguage", optionsRef.current.languageCode)
       }
 
+      let deviceClassification: DeviceClassification | null = null
+      if (activeClassifierModeRef.current === "device") {
+        try {
+          deviceClassification = await classifyOnDevice(nextSegment)
+          console.info(
+            `[Mic][Timing] mode=device classifier=${deviceClassification.classifierMs.toFixed(1)}ms decision=${deviceClassification.decision} top=${deviceClassification.topLabel} speech=${deviceClassification.speechScore.toFixed(3)} music=${deviceClassification.musicScore.toFixed(3)}`
+          )
+
+          if (shouldSkipForMusic(deviceClassification)) {
+            return
+          }
+
+          formData.append("skipServerClassification", "true")
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : "Unknown error"
+          activeClassifierModeRef.current = "server"
+          console.warn(
+            `[Mic][Classifier] On-device unavailable, falling back to server. ${reason}`
+          )
+          config.onClassifierFallback?.({
+            from: "device",
+            reason,
+            to: "server",
+          })
+        }
+      }
+
       const response = await fetch("/api/groq-translation", {
         method: "POST",
         body: formData,
@@ -293,7 +441,26 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
         )
       }
 
-      const payload = (await response.json()) as GroqTranslationPayload
+      const payload = (await response.json()) as GroqRouteResponse
+      if (payload.metrics) {
+        const {
+          classifierMs,
+          decision,
+          groqMs,
+          musicScore,
+          speechScore,
+          topLabel,
+          totalMs,
+        } = payload.metrics
+        console.info(
+          `[Mic][Timing] mode=${activeClassifierModeRef.current} skipped=${payload.skipped ? "true" : "false"} classifier=${typeof classifierMs === "number" ? `${classifierMs.toFixed(1)}ms` : "n/a"} groq=${typeof groqMs === "number" ? `${groqMs.toFixed(1)}ms` : "n/a"} total=${typeof totalMs === "number" ? `${totalMs.toFixed(1)}ms` : "n/a"}${decision ? ` decision=${decision}` : ""}${topLabel ? ` top=${topLabel}` : ""}${typeof speechScore === "number" ? ` speech=${speechScore.toFixed(3)}` : ""}${typeof musicScore === "number" ? ` music=${musicScore.toFixed(3)}` : ""}`
+        )
+      }
+
+      if (payload.skipped) {
+        return
+      }
+
       const assessment = assessGroqTranslation(payload)
       const stableText = assessment.text
 
@@ -493,6 +660,7 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
 
     activeRef.current = true
     optionsRef.current = options
+    activeClassifierModeRef.current = options.classifierMode ?? "server"
 
     try {
       const vad = await MicVAD.new({

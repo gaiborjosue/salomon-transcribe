@@ -36,6 +36,7 @@ interface SharedSession {
   sourceType: SharedSourceType
   status: SharedSessionStatus
   updatedAt: number
+  viewerCount: number
 }
 
 const MAX_ENTRIES = 500
@@ -82,7 +83,7 @@ class SharedSessionManager {
       sourceTitle: session.sourceTitle,
       sourceType: session.sourceType,
       status: session.status,
-      viewerCount: session.listeners.size,
+      viewerCount: session.viewerCount,
     }
   }
 
@@ -117,6 +118,7 @@ class SharedSessionManager {
       sourceType,
       status: "active",
       updatedAt: Date.now(),
+      viewerCount: 0,
     }
 
     this.sessions.set(session.id, session)
@@ -154,13 +156,21 @@ class SharedSessionManager {
     return this.createSnapshot(session)
   }
 
-  subscribe(sessionId: string, listener: (event: SharedSessionEvent) => void) {
+  subscribe(
+    sessionId: string,
+    listener: (event: SharedSessionEvent) => void,
+    options?: { countAsViewer?: boolean }
+  ) {
     const session = this.sessions.get(sessionId)
     if (!session) {
       return null
     }
 
+    const countAsViewer = options?.countAsViewer !== false
     session.listeners.add(listener)
+    if (countAsViewer) {
+      session.viewerCount += 1
+    }
     session.updatedAt = Date.now()
     listener({
       type: "snapshot",
@@ -173,6 +183,9 @@ class SharedSessionManager {
 
     return () => {
       session.listeners.delete(listener)
+      if (countAsViewer) {
+        session.viewerCount = Math.max(0, session.viewerCount - 1)
+      }
       session.updatedAt = Date.now()
       this.emit(session, {
         type: "snapshot",

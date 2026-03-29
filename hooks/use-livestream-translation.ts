@@ -61,6 +61,12 @@ export function useLivestreamTranslation(config: LivestreamConfig): LivestreamHo
   const [sessionId, setSessionId] = useState<string | null>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
   const connectingRef = useRef(false)
+  const statusRef = useRef<LivestreamSessionStatus>("idle")
+
+  const updateStatus = useCallback((nextStatus: LivestreamSessionStatus) => {
+    statusRef.current = nextStatus
+    setStatus(nextStatus)
+  }, [])
 
   const closeEventSource = useCallback(() => {
     eventSourceRef.current?.close()
@@ -73,7 +79,7 @@ export function useLivestreamTranslation(config: LivestreamConfig): LivestreamHo
     setSessionId(null)
 
     if (!currentSessionId) {
-      setStatus("disconnected")
+      updateStatus("disconnected")
       return
     }
 
@@ -84,9 +90,9 @@ export function useLivestreamTranslation(config: LivestreamConfig): LivestreamHo
         config.onError?.(error)
       }
     } finally {
-      setStatus("disconnected")
+      updateStatus("disconnected")
     }
-  }, [closeEventSource, config, sessionId])
+  }, [closeEventSource, config, sessionId, updateStatus])
 
   const connect = useCallback(
     async (options: ConnectOptions) => {
@@ -95,7 +101,7 @@ export function useLivestreamTranslation(config: LivestreamConfig): LivestreamHo
       }
 
       connectingRef.current = true
-      setStatus("connecting")
+      updateStatus("connecting")
       closeEventSource()
       setSessionId(null)
 
@@ -129,7 +135,7 @@ export function useLivestreamTranslation(config: LivestreamConfig): LivestreamHo
           const snapshot = JSON.parse(
             (event as MessageEvent<string>).data
           ) as LivestreamSessionSnapshot
-          setStatus(snapshot.status)
+          updateStatus(snapshot.status)
           config.onSnapshot?.(snapshot)
         })
 
@@ -146,7 +152,7 @@ export function useLivestreamTranslation(config: LivestreamConfig): LivestreamHo
             sourceTitle?: string
             status: LivestreamSessionStatus
           }
-          setStatus(nextStatus.status)
+          updateStatus(nextStatus.status)
           config.onStatusChange?.(nextStatus)
           if (nextStatus.error) {
             config.onError?.(new Error(nextStatus.error))
@@ -154,11 +160,20 @@ export function useLivestreamTranslation(config: LivestreamConfig): LivestreamHo
         })
 
         eventSource.onerror = (event) => {
-          setStatus("error")
-          config.onError?.(event)
+          if (
+            statusRef.current === "paused" ||
+            statusRef.current === "disconnected"
+          ) {
+            return
+          }
+
+          if (eventSource.readyState === EventSource.CLOSED) {
+            updateStatus("error")
+            config.onError?.(new Error("The livestream connection ended."))
+          }
         }
       } catch (error) {
-        setStatus("error")
+        updateStatus("error")
         if (error instanceof Error || error instanceof Event) {
           config.onError?.(error)
         }
@@ -167,20 +182,20 @@ export function useLivestreamTranslation(config: LivestreamConfig): LivestreamHo
         connectingRef.current = false
       }
     },
-    [closeEventSource, config]
+    [closeEventSource, config, updateStatus]
   )
 
   const pause = useCallback(async () => {
     if (!sessionId) return
     await postSessionAction(sessionId, "pause")
-    setStatus("paused")
-  }, [sessionId])
+    updateStatus("paused")
+  }, [sessionId, updateStatus])
 
   const resume = useCallback(async () => {
     if (!sessionId) return
     await postSessionAction(sessionId, "resume")
-    setStatus("connecting")
-  }, [sessionId])
+    updateStatus("connecting")
+  }, [sessionId, updateStatus])
 
   return {
     connect,

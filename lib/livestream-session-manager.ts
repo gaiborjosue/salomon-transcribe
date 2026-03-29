@@ -9,6 +9,10 @@ import type {
   LivestreamTranscriptEntry,
 } from "@/lib/livestream-types"
 import {
+  audioContentClassifier,
+  shouldSkipForMusic,
+} from "@/lib/audio-content-classifier"
+import {
   dedupeBoundaryText,
   normalizeWhitespace,
 } from "@/lib/transcript-text-utils"
@@ -122,6 +126,7 @@ async function resolveLivestreamMetadata(streamUrl: string) {
 }
 
 class LivestreamSession {
+  private readonly onTerminalStatus?: (sessionId: string) => void
   private readonly listeners = new Set<(event: LivestreamEvent) => void>()
   private readonly mode: LivestreamMode
   private readonly streamUrl: string
@@ -140,10 +145,22 @@ class LivestreamSession {
   private sourceTitle?: string
   private startedAtMs: number | null = null
   private status: LivestreamSessionStatus = "idle"
+  private terminalNotified = false
 
-  constructor({ id, mode, streamUrl }: { id: string; mode: LivestreamMode; streamUrl: string }) {
+  constructor({
+    id,
+    mode,
+    onTerminalStatus,
+    streamUrl,
+  }: {
+    id: string
+    mode: LivestreamMode
+    onTerminalStatus?: (sessionId: string) => void
+    streamUrl: string
+  }) {
     this.id = id
     this.mode = mode
+    this.onTerminalStatus = onTerminalStatus
     this.streamUrl = streamUrl
   }
 
@@ -191,6 +208,14 @@ class LivestreamSession {
       sourceTitle: this.sourceTitle,
       status,
     })
+
+    if (
+      !this.terminalNotified &&
+      (status === "disconnected" || status === "error")
+    ) {
+      this.terminalNotified = true
+      this.onTerminalStatus?.(this.id)
+    }
   }
 
   async start() {
@@ -383,20 +408,53 @@ class LivestreamSession {
     this.setStatus("transcribing")
 
     try {
+      let classification:
+        | Awaited<ReturnType<typeof audioContentClassifier.classifyPcm16>>
+        | undefined
+      let classifierMs: number | undefined
+
+      try {
+        const classifyStartedAt = performance.now()
+        classification = await audioContentClassifier.classifyPcm16(
+          nextChunk,
+          PCM_SAMPLE_RATE
+        )
+        classifierMs = performance.now() - classifyStartedAt
+
+        if (shouldSkipForMusic(classification)) {
+          console.info(
+            `[Livestream][Timing] skipped=music classifier=${classifierMs.toFixed(1)}ms top=${classification.topLabel} speech=${classification.speechScore.toFixed(3)} music=${classification.musicScore.toFixed(3)}`
+          )
+          if (isInactiveStatus(this.status as LivestreamSessionStatus)) {
+            return
+          }
+          this.setStatus("connected")
+          return
+        }
+      } catch {
+        // If the local classifier is unavailable, fall back to normal translation.
+      }
+
       const wavBuffer = encodeWav(nextChunk, PCM_SAMPLE_RATE)
       const audioFile = new File([wavBuffer], "livestream-chunk.wav", {
         type: "audio/wav",
       })
+      const groqStartedAt = performance.now()
       const payload = await translateAudioChunk({
         audioFile,
         context: this.committedTranslations.join(" ").trim(),
       })
+      const groqMs = performance.now() - groqStartedAt
 
       if (isInactiveStatus(this.status as LivestreamSessionStatus)) {
         return
       }
 
       const assessment = assessGroqTranslation(payload)
+
+      console.info(
+        `[Livestream][Timing] skipped=false classifier=${classifierMs?.toFixed(1) ?? "n/a"}ms groq=${groqMs.toFixed(1)}ms${classification ? ` top=${classification.topLabel} speech=${classification.speechScore.toFixed(3)} music=${classification.musicScore.toFixed(3)}` : ""}`
+      )
 
       if (assessment.text) {
         this.appendSegment(assessment.text, assessment.lowConfidence)
@@ -467,7 +525,14 @@ class LivestreamSessionManager {
     streamUrl: string
   }) {
     const id = randomUUID()
-    const session = new LivestreamSession({ id, mode, streamUrl })
+    const session = new LivestreamSession({
+      id,
+      mode,
+      onTerminalStatus: (sessionId) => {
+        this.sessions.delete(sessionId)
+      },
+      streamUrl,
+    })
     this.sessions.set(id, session)
 
     try {
