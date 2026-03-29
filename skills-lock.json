@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "skills": {
+    "setup-api-key": {
+      "source": "elevenlabs/skills",
+      "sourceType": "github",
+      "computedHash": "45e680b4a199bb031472fc28e752abc29bc2a38334cf5c80e1428c3f9fa33083"
+    },
+    "speech-to-text": {
+      "source": "elevenlabs/skills",
+      "sourceType": "github",
+      "computedHash": "bcb005567f41385e5dcba25d84de8d8ae10b65930a154146750c7004d103762b"
+    }
+  }
+}
