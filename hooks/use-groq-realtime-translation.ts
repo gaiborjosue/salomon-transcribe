@@ -1,7 +1,6 @@
 "use client"
 
 import { MicVAD } from "@ricky0123/vad-web"
-import * as tf from "@tensorflow/tfjs"
 import { useCallback, useRef, useState } from "react"
 
 import {
@@ -236,11 +235,24 @@ interface DeviceClassification {
   topLabel: string
 }
 
-let browserYamnetPromise: Promise<tf.GraphModel> | null = null
+type TfModule = typeof import("@tensorflow/tfjs")
+
+let browserTfPromise: Promise<TfModule> | null = null
+let browserYamnetPromise: Promise<Awaited<ReturnType<TfModule["loadGraphModel"]>>> | null =
+  null
+
+async function getBrowserTf() {
+  if (!browserTfPromise) {
+    browserTfPromise = import("@tensorflow/tfjs")
+  }
+
+  return browserTfPromise
+}
 
 async function getBrowserYamnetModel() {
   if (!browserYamnetPromise) {
     browserYamnetPromise = (async () => {
+      const tf = await getBrowserTf()
       await tf.ready()
       return tf.loadGraphModel(BROWSER_YAMNET_MODEL_URL, { fromTFHub: true })
     })()
@@ -266,6 +278,7 @@ function shouldSkipForMusic(classification: DeviceClassification) {
 }
 
 async function classifyOnDevice(samples: Float32Array): Promise<DeviceClassification> {
+  const tf = await getBrowserTf()
   const model = await getBrowserYamnetModel()
   const startedAt = performance.now()
 
@@ -273,7 +286,7 @@ async function classifyOnDevice(samples: Float32Array): Promise<DeviceClassifica
     const waveform = tf.tensor1d(samples)
     const outputs = model.predict(waveform)
     const scoresTensor = Array.isArray(outputs) ? outputs[0] : outputs
-    const meanTensor = (scoresTensor as tf.Tensor2D).mean(0)
+    const meanTensor = (scoresTensor as import("@tensorflow/tfjs").Tensor2D).mean(0)
     const topIndexTensor = meanTensor.argMax()
     const topIndexValue = topIndexTensor.dataSync()[0]
     const scoreValues = Float32Array.from(meanTensor.dataSync())
@@ -306,6 +319,7 @@ async function classifyOnDevice(samples: Float32Array): Promise<DeviceClassifica
 export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
   const [status, setStatus] = useState<GroqStatus>("idle")
   const vadRef = useRef<MicVAD | null>(null)
+  const audioContextRef = useRef<AudioContext | null>(null)
   const optionsRef = useRef<ConnectOptions | null>(null)
   const activeRef = useRef(false)
   const uploadInFlightRef = useRef(false)
@@ -355,9 +369,15 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
 
     const vad = vadRef.current
     vadRef.current = null
+    const audioContext = audioContextRef.current
+    audioContextRef.current = null
 
     if (vad) {
       void vad.destroy().catch(() => {})
+    }
+
+    if (audioContext && audioContext.state !== "closed") {
+      void audioContext.close().catch(() => {})
     }
 
     uploadInFlightRef.current = false
@@ -638,6 +658,11 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
     }
 
     try {
+      const audioContext = audioContextRef.current
+      if (audioContext?.state === "suspended") {
+        await audioContext.resume()
+      }
+
       await vad.start()
       pausedRef.current = false
       setStatus("connected")
@@ -663,10 +688,17 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
     activeClassifierModeRef.current = options.classifierMode ?? "server"
 
     try {
+      const audioContext = new AudioContext({
+        latencyHint: "interactive",
+      })
+      audioContextRef.current = audioContext
+
       const vad = await MicVAD.new({
         startOnLoad: false,
         baseAssetPath: VAD_ASSET_BASE_PATH,
         onnxWASMBasePath: ORT_WASM_BASE_PATH,
+        audioContext,
+        model: "v5",
         redemptionMs: getModeConfig(options.transcriptionMode).vadRedemptionMs,
         minSpeechMs: VAD_MIN_SPEECH_MS,
         preSpeechPadMs: VAD_PRE_SPEECH_PAD_MS,
@@ -701,10 +733,17 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
 
       vadRef.current = vad
       pausedRef.current = false
+      if (audioContext.state === "suspended") {
+        await audioContext.resume()
+      }
       await vad.start()
 
       if (!activeRef.current) {
         await vad.destroy()
+        if (audioContext.state !== "closed") {
+          await audioContext.close().catch(() => {})
+        }
+        audioContextRef.current = null
         return
       }
 

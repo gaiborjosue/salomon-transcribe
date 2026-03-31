@@ -1,13 +1,18 @@
 import { NextResponse } from "next/server"
 
-import { sharedSessionManager } from "@/lib/shared-session-manager"
+import {
+  normalizeShareCode,
+  sharedSessionManager,
+} from "@/lib/shared-session-manager"
+import { muxSessionManager } from "@/lib/mux-session-manager"
 
 export const runtime = "nodejs"
 
 export async function POST(request: Request) {
   try {
     const payload = (await request.json()) as { code?: string }
-    const code = typeof payload.code === "string" ? payload.code.trim().toUpperCase() : ""
+    const code =
+      typeof payload.code === "string" ? normalizeShareCode(payload.code) : null
 
     if (!code) {
       return NextResponse.json(
@@ -16,7 +21,9 @@ export async function POST(request: Request) {
       )
     }
 
-    const snapshot = sharedSessionManager.getSnapshotByCode(code)
+    const snapshot =
+      sharedSessionManager.getSnapshotByCode(code) ??
+      (await muxSessionManager.ensureSharedSessionByCode(code))
 
     if (!snapshot) {
       return NextResponse.json(

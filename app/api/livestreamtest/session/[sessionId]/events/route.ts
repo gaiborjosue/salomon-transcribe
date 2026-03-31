@@ -17,14 +17,50 @@ export async function GET(
     return new Response("Livestream session not found.", { status: 404 })
   }
 
+  let cleanupStream = () => {}
+
   const stream = new ReadableStream({
     start(controller) {
       const encoder = new TextEncoder()
+      let closed = false
+      let keepAlive: ReturnType<typeof setInterval> | null = null
+      let unsubscribe: (() => void) | null = null
+      let abortHandler = () => {}
+
+      const cleanup = () => {
+        if (closed) {
+          return
+        }
+
+        closed = true
+        if (keepAlive) {
+          clearInterval(keepAlive)
+          keepAlive = null
+        }
+        unsubscribe?.()
+        unsubscribe = null
+        request.signal.removeEventListener("abort", abortHandler)
+        try {
+          controller.close()
+        } catch {
+          // Stream may already be closed by the runtime.
+        }
+      }
+      cleanupStream = cleanup
+
       const send = (eventName: string, payload: unknown) => {
-        controller.enqueue(encoder.encode(serializeSseEvent(eventName, payload)))
+        if (closed) {
+          return
+        }
+
+        try {
+          controller.enqueue(encoder.encode(serializeSseEvent(eventName, payload)))
+        } catch {
+          cleanup()
+        }
       }
 
-      const unsubscribe = session.subscribe((event) => {
+      unsubscribe = session.subscribe((event) => {
         if (event.type === "snapshot") {
           send("snapshot", event.snapshot)
           return
@@ -42,17 +78,26 @@ export async function GET(
         })
       })
 
-      const keepAlive = setInterval(() => {
-        controller.enqueue(encoder.encode(": keepalive\n\n"))
+      keepAlive = setInterval(() => {
+        if (closed) {
+          return
+        }
+
+        try {
+          controller.enqueue(encoder.encode(": keepalive\n\n"))
+        } catch {
+          cleanup()
+        }
       }, 15_000)
 
-      const abortHandler = () => {
-        clearInterval(keepAlive)
-        unsubscribe()
-        controller.close()
+      abortHandler = () => {
+        cleanup()
       }
 
       request.signal.addEventListener("abort", abortHandler, { once: true })
+    },
+    cancel() {
+      cleanupStream()
     },
   })
 

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { sharedSessionManager } from "@/lib/shared-session-manager"
 import type { TranscriptEntry } from "@/components/transcriber-ui"
+import { muxSessionManager } from "@/lib/mux-session-manager"
 
 export const runtime = "nodejs"
 
@@ -10,7 +11,9 @@ export async function GET(
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
   const { sessionId } = await params
-  const snapshot = sharedSessionManager.getSnapshotById(sessionId)
+  const snapshot =
+    sharedSessionManager.getSnapshotById(sessionId) ??
+    (await muxSessionManager.ensureSharedSessionById(sessionId))
 
   if (!snapshot) {
     return NextResponse.json(

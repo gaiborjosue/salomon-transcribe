@@ -43,13 +43,43 @@ const MAX_ENTRIES = 500
 const SESSION_TTL_MS = 6 * 60 * 60 * 1000
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 const CODE_LENGTH = 6
+export const SHARE_CODE_PREFIX = "SAL"
 
-function generateCode() {
+function generateRawCode() {
   let code = ""
   for (let index = 0; index < CODE_LENGTH; index++) {
     code += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)]
   }
   return code
+}
+
+export function formatShareCode(input: string) {
+  const compact = input.toUpperCase().replace(/[^A-Z0-9]/g, "")
+  let body = compact
+
+  if (body.startsWith(SHARE_CODE_PREFIX)) {
+    body = body.slice(SHARE_CODE_PREFIX.length)
+  }
+
+  body = body.slice(0, CODE_LENGTH)
+  return body ? `${SHARE_CODE_PREFIX}-${body}` : `${SHARE_CODE_PREFIX}-`
+}
+
+export function normalizeShareCode(input: string) {
+  const compact = input.toUpperCase().replace(/[^A-Z0-9]/g, "")
+  const body = compact.startsWith(SHARE_CODE_PREFIX)
+    ? compact.slice(SHARE_CODE_PREFIX.length)
+    : compact
+
+  if (body.length !== CODE_LENGTH) {
+    return null
+  }
+
+  return `${SHARE_CODE_PREFIX}-${body}`
+}
+
+function generateCode() {
+  return `${SHARE_CODE_PREFIX}-${generateRawCode()}`
 }
 
 class SharedSessionManager {
@@ -94,29 +124,49 @@ class SharedSessionManager {
   }
 
   createSession({
+    code,
+    createdAt,
+    hostToken,
+    id,
+    initialEntries,
     sourceTitle,
     sourceType,
+    status,
   }: {
+    code?: string
+    createdAt?: number
+    hostToken?: string
+    id?: string
+    initialEntries?: TranscriptEntry[]
     sourceTitle?: string
     sourceType: SharedSourceType
+    status?: SharedSessionStatus
   }) {
     this.cleanupExpiredSessions()
 
-    let code = generateCode()
-    while (this.sessionsByCode.has(code)) {
-      code = generateCode()
+    let resolvedCode = code ?? generateCode()
+    while (this.sessionsByCode.has(resolvedCode)) {
+      if (code) {
+        throw new Error("Shared session code already exists.")
+      }
+      resolvedCode = generateCode()
+    }
+
+    const sessionId = id ?? randomUUID()
+    if (this.sessions.has(sessionId)) {
+      throw new Error("Shared session id already exists.")
     }
 
     const session: SharedSession = {
-      code,
-      createdAt: Date.now(),
-      entries: [],
-      hostToken: randomUUID(),
-      id: randomUUID(),
+      code: resolvedCode,
+      createdAt: createdAt ?? Date.now(),
+      entries: (initialEntries ?? []).slice(-MAX_ENTRIES),
+      hostToken: hostToken ?? randomUUID(),
+      id: sessionId,
       listeners: new Set(),
       sourceTitle,
       sourceType,
-      status: "active",
+      status: status ?? "active",
       updatedAt: Date.now(),
       viewerCount: 0,
     }
@@ -130,6 +180,47 @@ class SharedSessionManager {
     }
   }
 
+  ensureSession({
+    code,
+    createdAt,
+    entries,
+    hostToken,
+    id,
+    sourceTitle,
+    sourceType,
+    status,
+  }: {
+    code: string
+    createdAt?: number
+    entries?: TranscriptEntry[]
+    hostToken: string
+    id: string
+    sourceTitle?: string
+    sourceType: SharedSourceType
+    status?: SharedSessionStatus
+  }) {
+    this.cleanupExpiredSessions()
+
+    const existing = this.sessions.get(id)
+    if (existing) {
+      return {
+        hostToken: existing.hostToken,
+        snapshot: this.createSnapshot(existing),
+      }
+    }
+
+    return this.createSession({
+      code,
+      createdAt,
+      hostToken,
+      id,
+      initialEntries: entries,
+      sourceTitle,
+      sourceType,
+      status,
+    })
+  }
+
   getSessionById(id: string) {
     this.cleanupExpiredSessions()
     return this.sessions.get(id)
@@ -137,7 +228,8 @@ class SharedSessionManager {
 
   getSessionByCode(code: string) {
     this.cleanupExpiredSessions()
-    const normalizedCode = code.trim().toUpperCase()
+    const normalizedCode = normalizeShareCode(code)
+    if (!normalizedCode) return undefined
     const sessionId = this.sessionsByCode.get(normalizedCode)
     if (!sessionId) return undefined
     return this.sessions.get(sessionId)
@@ -291,11 +383,24 @@ class SharedSessionManager {
 declare global {
   // eslint-disable-next-line no-var
   var __sharedSessionManager__: SharedSessionManager | undefined
+  // eslint-disable-next-line no-var
+  var __sharedSessionManagerVersion__: number | undefined
 }
 
-export const sharedSessionManager =
-  globalThis.__sharedSessionManager__ ?? new SharedSessionManager()
+const SHARED_SESSION_MANAGER_VERSION = 2
 
-if (!globalThis.__sharedSessionManager__) {
-  globalThis.__sharedSessionManager__ = sharedSessionManager
+const shouldCreateManager =
+  !globalThis.__sharedSessionManager__ ||
+  globalThis.__sharedSessionManagerVersion__ !== SHARED_SESSION_MANAGER_VERSION ||
+  typeof globalThis.__sharedSessionManager__.ensureSession !== "function"
+
+const managerInstance: SharedSessionManager = shouldCreateManager
+  ? new SharedSessionManager()
+  : globalThis.__sharedSessionManager__!
+
+export const sharedSessionManager = managerInstance
+
+if (shouldCreateManager) {
+  globalThis.__sharedSessionManager__ = managerInstance
+  globalThis.__sharedSessionManagerVersion__ = SHARED_SESSION_MANAGER_VERSION
 }

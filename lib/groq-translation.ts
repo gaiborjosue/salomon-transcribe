@@ -10,6 +10,7 @@ const LOW_CONFIDENCE_NO_SPEECH_PROB = 0.28
 const LOW_CONFIDENCE_AVG_LOGPROB = -0.45
 const LOW_CONFIDENCE_MIN_COMPRESSION_RATIO = 0.75
 const LOW_CONFIDENCE_MAX_COMPRESSION_RATIO = 2.4
+const GROQ_TRANSLATION_TIMEOUT_MS = 45_000
 
 export interface GroqSegment {
   avg_logprob?: number
@@ -138,13 +139,32 @@ export async function translateAudioChunk({
 
   upstreamFormData.append("prompt", prompt)
 
-  const upstreamResponse = await fetch(GROQ_TRANSLATION_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: upstreamFormData,
-  })
+  const abortController = new AbortController()
+  const timeout = setTimeout(() => {
+    abortController.abort(
+      new Error("Groq translation timed out before the upstream request completed.")
+    )
+  }, GROQ_TRANSLATION_TIMEOUT_MS)
+
+  let upstreamResponse: Response
+
+  try {
+    upstreamResponse = await fetch(GROQ_TRANSLATION_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: upstreamFormData,
+      signal: abortController.signal,
+    })
+  } catch (error) {
+    if (abortController.signal.aborted) {
+      throw new Error("Groq translation timed out.")
+    }
+    throw error
+  } finally {
+    clearTimeout(timeout)
+  }
 
   if (!upstreamResponse.ok) {
     const errorText = await upstreamResponse.text()

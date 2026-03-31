@@ -1,16 +1,10 @@
 import { NextResponse } from "next/server"
-import {
-  audioContentClassifier,
-  extractPcm16MonoFromWav,
-  shouldSkipForMusic,
-} from "@/lib/audio-content-classifier"
-import { GROQ_TRANSLATION_MODEL, translateAudioChunk } from "@/lib/groq-translation"
+import { processAudioTranslation } from "@/lib/process-audio-translation"
 
 export const runtime = "nodejs"
 
 export async function POST(request: Request) {
   try {
-    const requestStartedAt = performance.now()
     const incomingFormData = await request.formData()
     const audioFile = incomingFormData.get("audio")
     const contextValue = incomingFormData.get("context")
@@ -29,76 +23,22 @@ export async function POST(request: Request) {
       )
     }
 
-    let classification:
-      | Awaited<ReturnType<typeof audioContentClassifier.classifyPcm16>>
-      | undefined
-    let classifierMs: number | undefined
-
-    if (!skipServerClassification) {
-      try {
-        const wavBuffer = Buffer.from(await audioFile.arrayBuffer())
-        const pcm = extractPcm16MonoFromWav(wavBuffer)
-        if (pcm) {
-          const classifyStartedAt = performance.now()
-          classification = await audioContentClassifier.classifyPcm16(
-            pcm.data,
-            pcm.sampleRate
-          )
-          classifierMs = performance.now() - classifyStartedAt
-
-          if (shouldSkipForMusic(classification)) {
-            const totalMs = performance.now() - requestStartedAt
-            console.info(
-              `[GroqAPI][Timing] skipped=music classifier=${classifierMs.toFixed(1)}ms total=${totalMs.toFixed(1)}ms top=${classification.topLabel} speech=${classification.speechScore.toFixed(3)} music=${classification.musicScore.toFixed(3)}`
-            )
-
-            return NextResponse.json({
-              metrics: {
-                classifierMs,
-                decision: classification.decision,
-                musicScore: classification.musicScore,
-                speechScore: classification.speechScore,
-                topLabel: classification.topLabel,
-                totalMs,
-              },
-              segments: [],
-              skipped: true,
-              text: "",
-              x_groq_model: GROQ_TRANSLATION_MODEL,
-            })
-          }
-        }
-      } catch {
-        // If local classification fails, continue with normal translation.
-      }
-    }
-
-    const groqStartedAt = performance.now()
-    const payload = await translateAudioChunk({
+    const result = await processAudioTranslation({
       audioFile,
       context,
+      skipServerClassification,
     })
-    const groqMs = performance.now() - groqStartedAt
-    const totalMs = performance.now() - requestStartedAt
 
     console.info(
-      `[GroqAPI][Timing] skipped=false classifier=${classifierMs?.toFixed(1) ?? "n/a"}ms groq=${groqMs.toFixed(1)}ms total=${totalMs.toFixed(1)}ms${classification ? ` top=${classification.topLabel} speech=${classification.speechScore.toFixed(3)} music=${classification.musicScore.toFixed(3)}` : ""}`
+      `[GroqAPI][Timing] skipped=${result.skipped ? "true" : "false"} classifier=${result.metrics.classifierMs?.toFixed(1) ?? "n/a"}ms groq=${result.metrics.groqMs?.toFixed(1) ?? "n/a"}ms total=${result.metrics.totalMs.toFixed(1)}ms${result.metrics.topLabel ? ` top=${result.metrics.topLabel}` : ""}${typeof result.metrics.speechScore === "number" ? ` speech=${result.metrics.speechScore.toFixed(3)}` : ""}${typeof result.metrics.musicScore === "number" ? ` music=${result.metrics.musicScore.toFixed(3)}` : ""}`
     )
 
     return NextResponse.json({
-      metrics: {
-        classifierMs,
-        decision: classification?.decision,
-        groqMs,
-        musicScore: classification?.musicScore,
-        speechScore: classification?.speechScore,
-        topLabel: classification?.topLabel,
-        totalMs,
-      },
-      text: payload.text,
-      segments: payload.segments,
-      skipped: false,
-      x_groq_model: GROQ_TRANSLATION_MODEL,
+      metrics: result.metrics,
+      text: result.payload.text,
+      segments: result.payload.segments,
+      skipped: result.skipped,
+      x_groq_model: result.xGroqModel,
     })
   } catch (error) {
     return NextResponse.json(

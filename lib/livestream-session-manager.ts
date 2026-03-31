@@ -13,6 +13,10 @@ import {
   shouldSkipForMusic,
 } from "@/lib/audio-content-classifier"
 import {
+  ServerSpeechSegmenter,
+  getServerSpeechSegmenterConfig,
+} from "@/lib/server-speech-segmenter"
+import {
   dedupeBoundaryText,
   normalizeWhitespace,
 } from "@/lib/transcript-text-utils"
@@ -23,33 +27,14 @@ type LivestreamEvent =
   | { type: "snapshot"; snapshot: LivestreamSessionSnapshot }
   | { type: "status"; error?: string; sourceTitle?: string; status: LivestreamSessionStatus }
 
-interface ChunkConfig {
-  chunkDurationMs: number
-  overlapMs: number
-}
-
 const PCM_SAMPLE_RATE = 16000
-const PCM_BYTES_PER_SECOND = PCM_SAMPLE_RATE * 2
 const SESSION_IDLE_TTL_MS = 60_000
 const MAX_CONTEXT_SEGMENTS = 2
 const MAX_HISTORY_SEGMENTS = 500
+const MAX_CHUNK_QUEUE_DURATION_MS = 60_000
 
 function isInactiveStatus(status: LivestreamSessionStatus) {
   return status === "paused" || status === "disconnected" || status === "error"
-}
-
-function getChunkConfig(mode: LivestreamMode): ChunkConfig {
-  if (mode === "sermon") {
-    return {
-      chunkDurationMs: 14_000,
-      overlapMs: 1_800,
-    }
-  }
-
-  return {
-    chunkDurationMs: 8_000,
-    overlapMs: 1_000,
-  }
 }
 
 function encodeWav(audioBuffer: Buffer, sampleRate: number): Buffer {
@@ -131,8 +116,8 @@ class LivestreamSession {
   private readonly mode: LivestreamMode
   private readonly streamUrl: string
   private readonly id: string
+  private readonly speechSegmenter: ServerSpeechSegmenter
 
-  private audioBuffer = Buffer.alloc(0)
   private chunkQueue: Buffer[] = []
   private committedTranslations: string[] = []
   private error?: string
@@ -161,6 +146,10 @@ class LivestreamSession {
     this.id = id
     this.mode = mode
     this.onTerminalStatus = onTerminalStatus
+    this.speechSegmenter = new ServerSpeechSegmenter(
+      id,
+      getServerSpeechSegmenterConfig(mode)
+    )
     this.streamUrl = streamUrl
   }
 
@@ -314,7 +303,7 @@ class LivestreamSession {
         return
       }
 
-      this.flushResidualAudio()
+      void this.flushResidualAudio()
       this.setStatus("error", "The livestream audio connection ended unexpectedly.")
     })
   }
@@ -330,30 +319,45 @@ class LivestreamSession {
   }
 
   private handleAudioChunk(chunk: Buffer) {
+    void this.handleAudioChunkAsync(chunk)
+  }
+
+  private async handleAudioChunkAsync(chunk: Buffer) {
     if (this.status === "paused" || this.status === "disconnected") {
       return
     }
 
-    this.audioBuffer = Buffer.concat([this.audioBuffer, chunk])
-    const { chunkDurationMs, overlapMs } = getChunkConfig(this.mode)
-    const chunkBytes = Math.round((chunkDurationMs / 1000) * PCM_BYTES_PER_SECOND)
-    const overlapBytes = Math.round((overlapMs / 1000) * PCM_BYTES_PER_SECOND)
+    const nextSegments = await this.speechSegmenter.pushPcm(chunk)
+    if (isInactiveStatus(this.status as LivestreamSessionStatus) || nextSegments.length === 0) {
+      return
+    }
 
-    while (this.audioBuffer.length >= chunkBytes) {
-      const nextChunk = this.audioBuffer.subarray(0, chunkBytes)
-      this.chunkQueue.push(Buffer.from(nextChunk))
-      this.audioBuffer = Buffer.from(this.audioBuffer.subarray(chunkBytes - overlapBytes))
+    this.chunkQueue.push(...nextSegments)
+
+    const maxQueuedChunks = Math.max(
+      1,
+      Math.ceil(
+        MAX_CHUNK_QUEUE_DURATION_MS /
+          getServerSpeechSegmenterConfig(this.mode).maxSegmentMs
+      )
+    )
+
+    if (this.chunkQueue.length > maxQueuedChunks) {
+      const droppedChunkCount = this.chunkQueue.length - maxQueuedChunks
+      this.chunkQueue.splice(0, droppedChunkCount)
+      console.warn(
+        `[Livestream] Dropped ${droppedChunkCount} queued audio chunk(s) to keep backlog bounded.`
+      )
     }
 
     void this.processQueue()
   }
 
-  private flushResidualAudio() {
-    const minimumBytes = Math.round(3 * PCM_BYTES_PER_SECOND)
-    if (this.audioBuffer.length >= minimumBytes) {
-      this.chunkQueue.push(Buffer.from(this.audioBuffer))
+  private async flushResidualAudio() {
+    const nextSegments = await this.speechSegmenter.flush()
+    if (nextSegments.length > 0) {
+      this.chunkQueue.push(...nextSegments)
     }
-    this.audioBuffer = Buffer.alloc(0)
     void this.processQueue()
   }
 
@@ -480,7 +484,7 @@ class LivestreamSession {
 
     this.setStatus("paused")
     this.stopIngestProcess()
-    this.audioBuffer = Buffer.alloc(0)
+    await this.speechSegmenter.reset()
     this.chunkQueue = []
   }
 
@@ -508,7 +512,7 @@ class LivestreamSession {
 
   async stop() {
     this.stopIngestProcess()
-    this.audioBuffer = Buffer.alloc(0)
+    await this.speechSegmenter.reset()
     this.chunkQueue = []
     this.setStatus("disconnected")
   }

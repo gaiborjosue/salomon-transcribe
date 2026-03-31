@@ -81,6 +81,8 @@ interface PendingRequest {
   resolve: (value: AudioContentClassification) => void
 }
 
+const CLASSIFIER_TIMEOUT_MS = 15_000
+
 class AudioContentClassifier {
   private worker: ChildProcessWithoutNullStreams | null = null
   private readonly pending = new Map<string, PendingRequest>()
@@ -203,8 +205,37 @@ class AudioContentClassifier {
     }
 
     return await new Promise<AudioContentClassification>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        this.pending.delete(id)
+        reject(new Error("YAMNet worker timed out."))
+      }, CLASSIFIER_TIMEOUT_MS)
+
       this.pending.set(id, { reject, resolve })
-      this.worker?.stdin.write(`${JSON.stringify(payload)}\n`, "utf8")
+      this.worker?.stdin.write(`${JSON.stringify(payload)}\n`, "utf8", (error) => {
+        if (!error) {
+          return
+        }
+
+        clearTimeout(timeout)
+        this.pending.delete(id)
+        reject(error)
+      })
+
+      const pending = this.pending.get(id)
+      if (!pending) {
+        return
+      }
+
+      this.pending.set(id, {
+        reject: (error) => {
+          clearTimeout(timeout)
+          pending.reject(error)
+        },
+        resolve: (value) => {
+          clearTimeout(timeout)
+          pending.resolve(value)
+        },
+      })
     })
   }
 }

@@ -1,0 +1,131 @@
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String    @id
+  name          String
+  email         String
+  emailVerified Boolean   @default(false)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  sessions      Session[]
+  accounts      Account[]
+  muxLiveSessions MuxLiveSession[]
+
+  @@unique([email])
+  @@map("user")
+}
+
+enum MuxProcessingStatus {
+  connecting
+  connected
+  paused
+  transcribing
+  disconnected
+  error
+}
+
+enum MuxLiveStatus {
+  active
+  deleted
+  disabled
+  idle
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+model MuxLiveSession {
+  id           String              @id
+  ownerUserId  String
+  owner        User                @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  hostToken    String              @unique
+  ingestToken  String              @unique
+  sharedSessionId String           @unique
+  sharedSessionCode String         @unique
+  sharedSessionHostToken String
+  streamKey    String
+  publishUrl   String
+  playbackId   String?
+  playbackUrl  String?
+  audioOnly    Boolean             @default(true)
+  muxStatus    MuxLiveStatus       @default(idle)
+  status       MuxProcessingStatus @default(connecting)
+  error        String?
+  workerRunning Boolean            @default(false)
+  hasEverBeenActive Boolean        @default(false)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  endedAt      DateTime?
+  entries      MuxTranscriptEntry[]
+
+  @@index([ownerUserId, endedAt, updatedAt(sort: Desc)])
+  @@index([endedAt, updatedAt(sort: Desc)])
+  @@map("mux_live_session")
+}
+
+model MuxTranscriptEntry {
+  id            String         @id @default(cuid())
+  sessionId     String
+  session       MuxLiveSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  text          String
+  lowConfidence Boolean?
+  timestampMs   Int
+  createdAt     DateTime       @default(now())
+
+  @@index([sessionId, createdAt(sort: Desc)])
+  @@map("mux_transcript_entry")
+}
