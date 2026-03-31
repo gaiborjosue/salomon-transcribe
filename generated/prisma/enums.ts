@@ -29,3 +29,13 @@ export const MuxLiveStatus = {
 } as const
 
 export type MuxLiveStatus = (typeof MuxLiveStatus)[keyof typeof MuxLiveStatus]
+
+
+export const TranscriptSessionSource = {
+  microphone: 'microphone',
+  livestream: 'livestream',
+  mux: 'mux',
+  rtmp: 'rtmp'
+} as const
+
+export type TranscriptSessionSource = (typeof TranscriptSessionSource)[keyof typeof TranscriptSessionSource]

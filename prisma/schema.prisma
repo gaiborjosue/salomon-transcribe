@@ -19,6 +19,7 @@ model User {
   sessions      Session[]
   accounts      Account[]
   muxLiveSessions MuxLiveSession[]
+  transcriptSessions TranscriptSession[]
 
   @@unique([email])
   @@map("user")
@@ -38,6 +39,13 @@ enum MuxLiveStatus {
   deleted
   disabled
   idle
+}
+
+enum TranscriptSessionSource {
+  microphone
+  livestream
+  mux
+  rtmp
 }
 
 model Session {
@@ -128,4 +136,38 @@ model MuxTranscriptEntry {
 
   @@index([sessionId, createdAt(sort: Desc)])
   @@map("mux_transcript_entry")
+}
+
+model TranscriptSession {
+  id          String                  @id @default(cuid())
+  ownerUserId String
+  owner       User                    @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  title       String
+  sourceType  TranscriptSessionSource
+  sourceTitle String?
+  previewText String?
+  entryCount  Int                     @default(0)
+  archivedAt  DateTime?
+  startedAt   DateTime
+  endedAt     DateTime
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  entries     TranscriptSessionEntry[]
+
+  @@index([ownerUserId, archivedAt, updatedAt(sort: Desc)])
+  @@index([ownerUserId, updatedAt(sort: Desc)])
+  @@map("transcript_session")
+}
+
+model TranscriptSessionEntry {
+  id            String            @id @default(cuid())
+  sessionId     String
+  session       TranscriptSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  text          String
+  lowConfidence Boolean?
+  timestampMs   Int
+  createdAt     DateTime          @default(now())
+
+  @@index([sessionId, createdAt(sort: Asc)])
+  @@map("transcript_session_entry")
 }

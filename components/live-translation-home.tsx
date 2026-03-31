@@ -29,9 +29,11 @@ import {
 import { Backlight } from "@/components/ui/backlight"
 import { Input } from "@/components/ui/input"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { useAuthenticatedShellCallbacks } from "@/components/auth/authenticated-home-shell"
 import { useGroqRealtimeTranslation } from "@/hooks/use-groq-realtime-translation"
 import { useLivestreamTranslation } from "@/hooks/use-livestream-translation"
 import type { LivestreamSessionSnapshot, LivestreamTranscriptEntry } from "@/lib/livestream-types"
+import type { TranscriptSessionSummary } from "@/lib/transcript-session-types"
 import {
   mergeTranscriptEntry,
   shouldMergeIntoPrevious,
@@ -101,11 +103,10 @@ const SOURCE_OPTIONS: Array<{
   },
 ]
 
-export default function LiveTranslationHome({
-  onAccountChromeVisibleChange,
-}: {
-  onAccountChromeVisibleChange?: (visible: boolean) => void
-}) {
+export default function LiveTranslationHome() {
+  const { onSessionActivityChange, onTranscriptSessionSaved } =
+    useAuthenticatedShellCallbacks()
+
   const [selectedSource, setSelectedSource] = useState<InputSource>("microphone")
   const [activeSource, setActiveSource] = useState<InputSource | null>(null)
   const transcriptionMode: TranscriptionMode = "sermon"
@@ -133,6 +134,7 @@ export default function LiveTranslationHome({
   const activeSourceRef = useRef<InputSource | null>(null)
   const micConnectionStateRef = useRef<MicConnectionState>("idle")
   const micSessionStartedAtRef = useRef<number | null>(null)
+  const activeSessionStartedAtRef = useRef<number | null>(null)
   const micLastTranscriptRef = useRef("")
   const viewerEventSourceRef = useRef<EventSource | null>(null)
   const hostSessionEventsRef = useRef<EventSource | null>(null)
@@ -186,6 +188,7 @@ export default function LiveTranslationHome({
     setIsPaused(false)
     micLastTranscriptRef.current = ""
     micSessionStartedAtRef.current = null
+    activeSessionStartedAtRef.current = null
   }, [])
 
   useEffect(() => {
@@ -842,6 +845,56 @@ export default function LiveTranslationHome({
     currentStatus === "paused" ||
     currentStatus === "transcribing"
 
+  useEffect(() => {
+    onSessionActivityChange?.(isSessionActive)
+  }, [isSessionActive, onSessionActivityChange])
+
+  const persistTranscriptSession = useCallback(
+    async (sourceType: "livestream" | "microphone" | "mux" | "rtmp") => {
+      const entries = transcriptEntriesRef.current
+      if (entries.length === 0) {
+        return
+      }
+
+      const response = await fetch("/api/transcript-sessions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          endedAt: Date.now(),
+          entries,
+          sourceTitle: sourceTitle || undefined,
+          sourceType,
+          startedAt: activeSessionStartedAtRef.current ?? Date.now(),
+          title: sourceTitle || undefined,
+        }),
+      })
+
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            error?: string
+            session?: {
+              summary?: TranscriptSessionSummary
+            } | null
+          }
+        | null
+
+      if (!response.ok) {
+        throw new Error(
+          typeof payload?.error === "string"
+            ? payload.error
+            : "Unable to save the transcript session."
+        )
+      }
+
+      if (payload?.session?.summary) {
+        onTranscriptSessionSaved?.(payload.session.summary)
+      }
+    },
+    [onTranscriptSessionSaved, sourceTitle]
+  )
+
   const hasContent = Boolean(
     recordingError || transcriptEntries.length || partialTranscript
   )
@@ -853,6 +906,18 @@ export default function LiveTranslationHome({
     }
 
     const currentSource = activeSourceRef.current
+
+    if (currentSource && transcriptEntriesRef.current.length > 0) {
+      try {
+        await persistTranscriptSession(currentSource)
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Unable to save the transcript session."
+        )
+      }
+    }
 
     if (currentSource === "microphone") {
       try {
@@ -921,6 +986,7 @@ export default function LiveTranslationHome({
         }
 
         micSessionStartedAtRef.current = Date.now()
+        activeSessionStartedAtRef.current = Date.now()
         updateMicConnectionState("connected")
         startSoundRef.current?.play().catch(() => {})
       } catch {
@@ -946,6 +1012,7 @@ export default function LiveTranslationHome({
         streamUrl: trimmedUrl,
         transcriptionMode,
       })
+      activeSessionStartedAtRef.current = Date.now()
       startSoundRef.current?.play().catch(() => {})
     } catch {
       activeSourceRef.current = null
@@ -1089,12 +1156,9 @@ export default function LiveTranslationHome({
     return "Choose a source to begin"
   }, [activeSource, currentStatus, viewerSession])
 
-  const displaySource = viewerSession?.sourceType ?? activeSource
+  const displaySource =
+    viewerSession?.sourceType ?? activeSource ?? null
   const canShareCurrentSession = Boolean(activeSource && !viewerSession)
-
-  useEffect(() => {
-    onAccountChromeVisibleChange?.(!(activeSource || viewerSession))
-  }, [activeSource, onAccountChromeVisibleChange, viewerSession])
 
   useEffect(() => {
     if (!joinDrawerOpen) {
@@ -1154,12 +1218,12 @@ export default function LiveTranslationHome({
             <div
               className={cn(
                 "absolute inset-0 transition-[opacity,transform,filter] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]",
-                hasContent
+                hasContent && isSessionActive
                   ? "translate-y-0 opacity-100 blur-0"
                   : "pointer-events-none translate-y-3 opacity-0 blur-[2px]"
               )}
             >
-              {hasContent && (
+              {hasContent && isSessionActive && (
                 <>
                   {(displaySource || sourceTitle || hostShareSession || viewerSession) && (
                     <div className="absolute top-4 left-4 right-4 z-20 flex items-start justify-between gap-3">
@@ -1168,8 +1232,12 @@ export default function LiveTranslationHome({
                         {displaySource === "microphone"
                           ? "Live Mic"
                           : displaySource === "livestream"
-                            ? "YouTube Livestream"
-                            : "Shared session"}
+                            ? "YouTube Live"
+                            : displaySource === "mux"
+                              ? "Mux"
+                              : displaySource === "rtmp"
+                                ? "RTMP"
+                                : "Shared session"}
                       </span>
                       {displaySource === "livestream" && sourceTitle ? (
                         <div className="rounded-full border border-white/10 px-3 py-1">

@@ -37,6 +37,7 @@ import type {
   MuxSessionSnapshot,
   MuxSessionSummary,
 } from "@/lib/mux-session-types"
+import type { TranscriptSessionSummary } from "@/lib/transcript-session-types"
 
 interface HostSession {
   hostToken: string
@@ -671,6 +672,34 @@ export function MuxLivePage() {
         )
       }
 
+      if (entries.length > 0) {
+        const saveResponse = await fetch("/api/transcript-sessions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            endedAt: Date.now(),
+            entries,
+            sourceType: "mux",
+            startedAt: session.snapshot.createdAt,
+            title: "Mux managed ingest",
+          }),
+        })
+
+        const savePayload = (await saveResponse.json().catch(() => null)) as
+          | { error?: string; session?: { summary?: TranscriptSessionSummary } | null }
+          | null
+
+        if (!saveResponse.ok) {
+          throw new Error(
+            typeof savePayload?.error === "string"
+              ? savePayload.error
+              : "Unable to save the transcript session."
+          )
+        }
+      }
+
       closeEvents()
       setHostSession(null)
       await loadAvailableSessions()
@@ -689,7 +718,7 @@ export function MuxLivePage() {
     } finally {
       setIsEndingSession(false)
     }
-  }, [closeEvents, hostSession, loadAvailableSessions])
+  }, [closeEvents, entries, hostSession, loadAvailableSessions])
 
   const ffmpegPublishCommand = useMemo(() => {
     if (!hostSession) {

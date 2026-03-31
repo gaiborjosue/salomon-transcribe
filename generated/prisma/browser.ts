@@ -47,3 +47,13 @@ export type MuxLiveSession = Prisma.MuxLiveSessionModel
  * 
  */
 export type MuxTranscriptEntry = Prisma.MuxTranscriptEntryModel
+/**
+ * Model TranscriptSession
+ * 
+ */
+export type TranscriptSession = Prisma.TranscriptSessionModel
+/**
+ * Model TranscriptSessionEntry
+ * 
+ */
+export type TranscriptSessionEntry = Prisma.TranscriptSessionEntryModel

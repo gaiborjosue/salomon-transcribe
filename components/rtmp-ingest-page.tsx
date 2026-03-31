@@ -23,6 +23,7 @@ import {
 } from "@/components/transcriber-ui"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import type { TranscriptSessionSummary } from "@/lib/transcript-session-types"
 import {
   Tooltip,
   TooltipContent,
@@ -285,7 +286,7 @@ export function RtmpIngestPage() {
     }
 
     try {
-      await fetch(`/api/rtmp-sessions/${session.snapshot.id}/control`, {
+      const response = await fetch(`/api/rtmp-sessions/${session.snapshot.id}/control`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -295,8 +296,52 @@ export function RtmpIngestPage() {
           hostToken: session.hostToken,
         }),
       })
-    } catch {
-      // noop
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as
+          | { error?: string }
+          | null
+        throw new Error(
+          typeof payload?.error === "string"
+            ? payload.error
+            : "Unable to end the RTMP session."
+        )
+      }
+
+      if (entries.length > 0) {
+        const saveResponse = await fetch("/api/transcript-sessions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            endedAt: Date.now(),
+            entries,
+            sourceType: "rtmp",
+            startedAt: session.snapshot.createdAt,
+            title: "RTMP ingest",
+          }),
+        })
+
+        const savePayload = (await saveResponse.json().catch(() => null)) as
+          | { error?: string; session?: { summary?: TranscriptSessionSummary } | null }
+          | null
+
+        if (!saveResponse.ok) {
+          throw new Error(
+            typeof savePayload?.error === "string"
+              ? savePayload.error
+              : "Unable to save the transcript session."
+          )
+        }
+      }
+    } catch (nextError) {
+      const message =
+        nextError instanceof Error
+          ? nextError.message
+          : "Unable to end the RTMP session."
+      setError(message)
+      toast.error(message)
     } finally {
       closeEvents()
       setHostSession(null)
@@ -304,7 +349,7 @@ export function RtmpIngestPage() {
       setStatus("disconnected")
       setError("")
     }
-  }, [closeEvents, hostSession])
+  }, [closeEvents, entries, hostSession])
 
   const handlePauseToggle = useCallback(async () => {
     const session = hostSession

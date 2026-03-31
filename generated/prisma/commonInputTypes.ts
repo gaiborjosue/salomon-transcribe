@@ -222,6 +222,23 @@ export type IntWithAggregatesFilter<$PrismaModel = never> = {
   _max?: Prisma.NestedIntFilter<$PrismaModel>
 }
 
+export type EnumTranscriptSessionSourceFilter<$PrismaModel = never> = {
+  equals?: $Enums.TranscriptSessionSource | Prisma.EnumTranscriptSessionSourceFieldRefInput<$PrismaModel>
+  in?: $Enums.TranscriptSessionSource[] | Prisma.ListEnumTranscriptSessionSourceFieldRefInput<$PrismaModel>
+  notIn?: $Enums.TranscriptSessionSource[] | Prisma.ListEnumTranscriptSessionSourceFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumTranscriptSessionSourceFilter<$PrismaModel> | $Enums.TranscriptSessionSource
+}
+
+export type EnumTranscriptSessionSourceWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.TranscriptSessionSource | Prisma.EnumTranscriptSessionSourceFieldRefInput<$PrismaModel>
+  in?: $Enums.TranscriptSessionSource[] | Prisma.ListEnumTranscriptSessionSourceFieldRefInput<$PrismaModel>
+  notIn?: $Enums.TranscriptSessionSource[] | Prisma.ListEnumTranscriptSessionSourceFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumTranscriptSessionSourceWithAggregatesFilter<$PrismaModel> | $Enums.TranscriptSessionSource
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumTranscriptSessionSourceFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumTranscriptSessionSourceFilter<$PrismaModel>
+}
+
 export type NestedStringFilter<$PrismaModel = never> = {
   equals?: string | Prisma.StringFieldRefInput<$PrismaModel>
   in?: string[] | Prisma.ListStringFieldRefInput<$PrismaModel>
@@ -441,6 +458,23 @@ export type NestedFloatFilter<$PrismaModel = never> = {
   gt?: number | Prisma.FloatFieldRefInput<$PrismaModel>
   gte?: number | Prisma.FloatFieldRefInput<$PrismaModel>
   not?: Prisma.NestedFloatFilter<$PrismaModel> | number
+}
+
+export type NestedEnumTranscriptSessionSourceFilter<$PrismaModel = never> = {
+  equals?: $Enums.TranscriptSessionSource | Prisma.EnumTranscriptSessionSourceFieldRefInput<$PrismaModel>
+  in?: $Enums.TranscriptSessionSource[] | Prisma.ListEnumTranscriptSessionSourceFieldRefInput<$PrismaModel>
+  notIn?: $Enums.TranscriptSessionSource[] | Prisma.ListEnumTranscriptSessionSourceFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumTranscriptSessionSourceFilter<$PrismaModel> | $Enums.TranscriptSessionSource
+}
+
+export type NestedEnumTranscriptSessionSourceWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.TranscriptSessionSource | Prisma.EnumTranscriptSessionSourceFieldRefInput<$PrismaModel>
+  in?: $Enums.TranscriptSessionSource[] | Prisma.ListEnumTranscriptSessionSourceFieldRefInput<$PrismaModel>
+  notIn?: $Enums.TranscriptSessionSource[] | Prisma.ListEnumTranscriptSessionSourceFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumTranscriptSessionSourceWithAggregatesFilter<$PrismaModel> | $Enums.TranscriptSessionSource
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumTranscriptSessionSourceFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumTranscriptSessionSourceFilter<$PrismaModel>
 }
 
 

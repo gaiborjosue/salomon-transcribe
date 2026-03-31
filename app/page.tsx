@@ -2,8 +2,10 @@ import Link from "next/link"
 import { headers } from "next/headers"
 
 import { AuthenticatedHomeShell } from "@/components/auth/authenticated-home-shell"
+import LiveTranslationHome from "@/components/live-translation-home"
 import { Button } from "@/components/ui/button"
 import { auth } from "@/lib/auth"
+import { listTranscriptSessions } from "@/lib/transcript-session-store"
 
 export default async function HomePage() {
   const session = await auth.api.getSession({
@@ -48,9 +50,15 @@ export default async function HomePage() {
     )
   }
 
+  const transcriptSessions = await listTranscriptSessions(session.user.id)
+
   return (
     <AuthenticatedHomeShell
+      activeHistorySessionId={null}
+      initialSessions={transcriptSessions}
       userLabel={session.user.email || session.user.name || "Signed in"}
-    />
+    >
+      <LiveTranslationHome />
+    </AuthenticatedHomeShell>
   )
 }

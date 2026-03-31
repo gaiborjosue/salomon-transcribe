@@ -56,7 +56,9 @@ export const ModelName = {
   Account: 'Account',
   Verification: 'Verification',
   MuxLiveSession: 'MuxLiveSession',
-  MuxTranscriptEntry: 'MuxTranscriptEntry'
+  MuxTranscriptEntry: 'MuxTranscriptEntry',
+  TranscriptSession: 'TranscriptSession',
+  TranscriptSessionEntry: 'TranscriptSessionEntry'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -169,6 +171,36 @@ export const MuxTranscriptEntryScalarFieldEnum = {
 } as const
 
 export type MuxTranscriptEntryScalarFieldEnum = (typeof MuxTranscriptEntryScalarFieldEnum)[keyof typeof MuxTranscriptEntryScalarFieldEnum]
+
+
+export const TranscriptSessionScalarFieldEnum = {
+  id: 'id',
+  ownerUserId: 'ownerUserId',
+  title: 'title',
+  sourceType: 'sourceType',
+  sourceTitle: 'sourceTitle',
+  previewText: 'previewText',
+  entryCount: 'entryCount',
+  archivedAt: 'archivedAt',
+  startedAt: 'startedAt',
+  endedAt: 'endedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type TranscriptSessionScalarFieldEnum = (typeof TranscriptSessionScalarFieldEnum)[keyof typeof TranscriptSessionScalarFieldEnum]
+
+
+export const TranscriptSessionEntryScalarFieldEnum = {
+  id: 'id',
+  sessionId: 'sessionId',
+  text: 'text',
+  lowConfidence: 'lowConfidence',
+  timestampMs: 'timestampMs',
+  createdAt: 'createdAt'
+} as const
+
+export type TranscriptSessionEntryScalarFieldEnum = (typeof TranscriptSessionEntryScalarFieldEnum)[keyof typeof TranscriptSessionEntryScalarFieldEnum]
 
 
 export const SortOrder = {
