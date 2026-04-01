@@ -98,6 +98,10 @@ export async function POST(
       status: "error",
     })
 
-    return NextResponse.json({ error: message }, { status: 500 })
+    console.error("[mux-live-streams] chunk failed", error)
+    return NextResponse.json(
+      { error: "Unable to process the Mux audio." },
+      { status: 500 }
+    )
   }
 }

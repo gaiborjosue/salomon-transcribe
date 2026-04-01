@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     })
 
     console.info(
-      `[GroqAPI][Timing] skipped=${result.skipped ? "true" : "false"} classifier=${result.metrics.classifierMs?.toFixed(1) ?? "n/a"}ms groq=${result.metrics.groqMs?.toFixed(1) ?? "n/a"}ms total=${result.metrics.totalMs.toFixed(1)}ms${result.metrics.topLabel ? ` top=${result.metrics.topLabel}` : ""}${typeof result.metrics.speechScore === "number" ? ` speech=${result.metrics.speechScore.toFixed(3)}` : ""}${typeof result.metrics.musicScore === "number" ? ` music=${result.metrics.musicScore.toFixed(3)}` : ""}`
+      `[GroqAPI][Timing] skipped=${result.skipped ? "true" : "false"} classifier=${result.metrics.classifierMs?.toFixed(1) ?? "n/a"}ms groq=${result.metrics.groqMs?.toFixed(1) ?? "n/a"}ms total=${result.metrics.totalMs.toFixed(1)}ms region=${result.metrics.xGroqRegion ?? "n/a"} contextChars=${result.metrics.contextChars ?? 0}${result.metrics.contextTruncated ? " truncated=true" : ""}${result.metrics.topLabel ? ` top=${result.metrics.topLabel}` : ""}${typeof result.metrics.speechScore === "number" ? ` speech=${result.metrics.speechScore.toFixed(3)}` : ""}${typeof result.metrics.musicScore === "number" ? ` music=${result.metrics.musicScore.toFixed(3)}` : ""}`
     )
 
     return NextResponse.json({

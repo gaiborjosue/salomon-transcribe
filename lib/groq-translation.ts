@@ -2,6 +2,7 @@ import { normalizeWhitespace } from "@/lib/transcript-text-utils"
 
 const GROQ_TRANSLATION_URL = "https://api.groq.com/openai/v1/audio/translations"
 export const GROQ_TRANSLATION_MODEL = "whisper-large-v3"
+const MAX_GROQ_CONTEXT_CHARS = 320
 const MAX_NO_SPEECH_PROB = 0.6
 const MIN_AVG_LOGPROB = -0.9
 const MIN_COMPRESSION_RATIO = 0.6
@@ -26,9 +27,43 @@ export interface GroqTranslationPayload {
   text: string
 }
 
+export interface GroqTranslationMeta {
+  cfRay?: string
+  contextChars: number
+  contextTruncated: boolean
+  groqMs: number
+  promptChars: number
+  xGroqRegion?: string
+}
+
 export interface GroqTranslationAssessment {
   lowConfidence: boolean
   text: string
+}
+
+function buildGroqPromptContext(context?: string) {
+  const normalizedContext = normalizeWhitespace(context ?? "")
+  if (!normalizedContext) {
+    return {
+      contextChars: 0,
+      contextTruncated: false,
+      value: "",
+    }
+  }
+
+  if (normalizedContext.length <= MAX_GROQ_CONTEXT_CHARS) {
+    return {
+      contextChars: normalizedContext.length,
+      contextTruncated: false,
+      value: normalizedContext,
+    }
+  }
+
+  return {
+    contextChars: MAX_GROQ_CONTEXT_CHARS,
+    contextTruncated: true,
+    value: normalizedContext.slice(-MAX_GROQ_CONTEXT_CHARS),
+  }
 }
 
 function shouldKeepSegment(segment: GroqSegment, text: string): boolean {
@@ -117,7 +152,7 @@ export async function translateAudioChunk({
 }: {
   audioFile: File
   context?: string
-}): Promise<GroqTranslationPayload> {
+}): Promise<{ meta: GroqTranslationMeta; payload: GroqTranslationPayload }> {
   const apiKey = process.env.GROQ_API_KEY
 
   if (!apiKey) {
@@ -133,8 +168,9 @@ export async function translateAudioChunk({
 
   const promptBase =
     "Spanish Christian sermon. Natural English translation. Preserve proper nouns, Bible references, and theological terms with clear spelling."
-  const prompt = context
-    ? `${promptBase} Keep continuity with this recent English translation context: ${context}`
+  const preparedContext = buildGroqPromptContext(context)
+  const prompt = preparedContext.value
+    ? `${promptBase} Keep continuity with this recent English translation context: ${preparedContext.value}`
     : promptBase
 
   upstreamFormData.append("prompt", prompt)
@@ -149,6 +185,7 @@ export async function translateAudioChunk({
   let upstreamResponse: Response
 
   try {
+    const groqStartedAt = performance.now()
     upstreamResponse = await fetch(GROQ_TRANSLATION_URL, {
       method: "POST",
       headers: {
@@ -157,6 +194,33 @@ export async function translateAudioChunk({
       body: upstreamFormData,
       signal: abortController.signal,
     })
+    const groqMs = performance.now() - groqStartedAt
+
+    if (!upstreamResponse.ok) {
+      const errorText = await upstreamResponse.text()
+      throw new Error(
+        `Groq translation failed: ${upstreamResponse.status} ${errorText}`
+      )
+    }
+
+    const payload = await upstreamResponse.json()
+
+    return {
+      meta: {
+        cfRay: upstreamResponse.headers.get("cf-ray") ?? undefined,
+        contextChars: preparedContext.contextChars,
+        contextTruncated: preparedContext.contextTruncated,
+        groqMs,
+        promptChars: prompt.length,
+        xGroqRegion: upstreamResponse.headers.get("x-groq-region") ?? undefined,
+      },
+      payload: {
+        text: typeof payload.text === "string" ? payload.text : "",
+        segments: Array.isArray(payload.segments)
+          ? (payload.segments as GroqSegment[])
+          : [],
+      },
+    }
   } catch (error) {
     if (abortController.signal.aborted) {
       throw new Error("Groq translation timed out.")
@@ -164,21 +228,5 @@ export async function translateAudioChunk({
     throw error
   } finally {
     clearTimeout(timeout)
-  }
-
-  if (!upstreamResponse.ok) {
-    const errorText = await upstreamResponse.text()
-    throw new Error(
-      `Groq translation failed: ${upstreamResponse.status} ${errorText}`
-    )
-  }
-
-  const payload = await upstreamResponse.json()
-
-  return {
-    text: typeof payload.text === "string" ? payload.text : "",
-    segments: Array.isArray(payload.segments)
-      ? (payload.segments as GroqSegment[])
-      : [],
   }
 }

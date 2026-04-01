@@ -17,18 +17,11 @@ export async function GET(
   }
 
   const { liveStreamId } = await params
-  const { searchParams } = new URL(request.url)
-  const hostToken = searchParams.get("hostToken")?.trim() || ""
-
-  if (!hostToken) {
-    return new Response("Missing host token.", { status: 400 })
-  }
-
   const ownerSession = await muxSessionManager.getOwnerSession(
     liveStreamId,
     session.user.id
   )
-  if (!ownerSession || ownerSession.hostToken !== hostToken) {
+  if (!ownerSession) {
     return new Response("Mux session not found.", { status: 404 })
   }
 
@@ -77,23 +70,32 @@ export async function GET(
       }
 
       void (async () => {
-        unsubscribe = await muxSessionManager.subscribe(liveStreamId, hostToken, (event) => {
-          if (event.type === "snapshot") {
-            send("snapshot", event.snapshot)
-            return
-          }
+        unsubscribe = await muxSessionManager.subscribe(
+          liveStreamId,
+          ownerSession.hostToken,
+          (event) => {
+            if (event.type === "snapshot") {
+              send("snapshot", event.snapshot)
+              return
+            }
 
-          if (event.type === "entry") {
-            send("entry", event.entry)
-            return
-          }
+            if (event.type === "entry") {
+              send("entry", event.entry)
+              return
+            }
 
-          send("status", {
-            error: event.error,
-            muxStatus: event.muxStatus,
-            status: event.status,
+             if (event.type === "perf") {
+              send("perf", event.perf)
+              return
+            }
+
+            send("status", {
+              error: event.error,
+              muxStatus: event.muxStatus,
+              status: event.status,
+            })
           })
-        })
+        
 
         if (!unsubscribe) {
           cleanup()

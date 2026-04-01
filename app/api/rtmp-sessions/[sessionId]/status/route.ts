@@ -40,7 +40,7 @@ export async function POST(
       return NextResponse.json({ error: "Invalid status." }, { status: 400 })
     }
 
-    const updated = rtmpSessionManager.updateStatus({
+    const updated = await rtmpSessionManager.updateStatus({
       error: typeof payload?.error === "string" ? payload.error : undefined,
       ingestToken,
       sessionId,

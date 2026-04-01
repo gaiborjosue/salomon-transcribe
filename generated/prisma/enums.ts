@@ -39,3 +39,19 @@ export const TranscriptSessionSource = {
 } as const
 
 export type TranscriptSessionSource = (typeof TranscriptSessionSource)[keyof typeof TranscriptSessionSource]
+
+
+export const SharedSessionSource = {
+  microphone: 'microphone',
+  livestream: 'livestream'
+} as const
+
+export type SharedSessionSource = (typeof SharedSessionSource)[keyof typeof SharedSessionSource]
+
+
+export const SharedSessionStatus = {
+  active: 'active',
+  ended: 'ended'
+} as const
+
+export type SharedSessionStatus = (typeof SharedSessionStatus)[keyof typeof SharedSessionStatus]

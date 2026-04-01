@@ -1,3 +1,4 @@
+import { getApiSession } from "@/lib/api-auth"
 import { rtmpSessionManager } from "@/lib/rtmp-session-manager"
 
 export const runtime = "nodejs"
@@ -10,12 +11,15 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
-  const { sessionId } = await params
-  const { searchParams } = new URL(request.url)
-  const hostToken = searchParams.get("hostToken")?.trim() || ""
+  const session = await getApiSession(request)
+  if (!session) {
+    return new Response("Unauthorized.", { status: 401 })
+  }
 
-  if (!hostToken) {
-    return new Response("Missing host token.", { status: 400 })
+  const { sessionId } = await params
+  const ownerSession = await rtmpSessionManager.getOwnerSession(sessionId, session.user.id)
+  if (!ownerSession) {
+    return new Response("RTMP session not found.", { status: 404 })
   }
 
   let cleanupStream = () => {}
@@ -62,45 +66,50 @@ export async function GET(
         }
       }
 
-      unsubscribe = rtmpSessionManager.subscribe(sessionId, hostToken, (event) => {
-        if (event.type === "snapshot") {
-          send("snapshot", event.snapshot)
+      void (async () => {
+        unsubscribe = await rtmpSessionManager.subscribe(
+          sessionId,
+          ownerSession.hostToken,
+          (event) => {
+            if (event.type === "snapshot") {
+              send("snapshot", event.snapshot)
+              return
+            }
+
+            if (event.type === "entry") {
+              send("entry", event.entry)
+              return
+            }
+
+            send("status", {
+              error: event.error,
+              status: event.status,
+            })
+          })
+
+        if (!unsubscribe) {
+          cleanup()
           return
         }
 
-        if (event.type === "entry") {
-          send("entry", event.entry)
-          return
-        }
+        keepAlive = setInterval(() => {
+          if (closed) {
+            return
+          }
 
-        send("status", {
-          error: event.error,
-          status: event.status,
-        })
-      })
+          try {
+            controller.enqueue(encoder.encode(": keepalive\n\n"))
+          } catch {
+            cleanup()
+          }
+        }, 15_000)
 
-      if (!unsubscribe) {
-        cleanup()
-        return
-      }
-
-      keepAlive = setInterval(() => {
-        if (closed) {
-          return
-        }
-
-        try {
-          controller.enqueue(encoder.encode(": keepalive\n\n"))
-        } catch {
+        abortHandler = () => {
           cleanup()
         }
-      }, 15_000)
 
-      abortHandler = () => {
-        cleanup()
-      }
-
-      request.signal.addEventListener("abort", abortHandler, { once: true })
+        request.signal.addEventListener("abort", abortHandler, { once: true })
+      })()
     },
     cancel() {
       cleanupStream()

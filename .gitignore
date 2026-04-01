@@ -5,6 +5,8 @@
 
 .venv*
 
+.DS_Store
+
 # next.js
 /.next/
 /out/

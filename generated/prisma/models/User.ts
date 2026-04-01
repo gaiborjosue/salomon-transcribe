@@ -201,6 +201,7 @@ export type UserWhereInput = {
   sessions?: Prisma.SessionListRelationFilter
   accounts?: Prisma.AccountListRelationFilter
   muxLiveSessions?: Prisma.MuxLiveSessionListRelationFilter
+  rtmpSessions?: Prisma.RtmpSessionListRelationFilter
   transcriptSessions?: Prisma.TranscriptSessionListRelationFilter
 }
 
@@ -215,6 +216,7 @@ export type UserOrderByWithRelationInput = {
   sessions?: Prisma.SessionOrderByRelationAggregateInput
   accounts?: Prisma.AccountOrderByRelationAggregateInput
   muxLiveSessions?: Prisma.MuxLiveSessionOrderByRelationAggregateInput
+  rtmpSessions?: Prisma.RtmpSessionOrderByRelationAggregateInput
   transcriptSessions?: Prisma.TranscriptSessionOrderByRelationAggregateInput
 }
 
@@ -232,6 +234,7 @@ export type UserWhereUniqueInput = Prisma.AtLeast<{
   sessions?: Prisma.SessionListRelationFilter
   accounts?: Prisma.AccountListRelationFilter
   muxLiveSessions?: Prisma.MuxLiveSessionListRelationFilter
+  rtmpSessions?: Prisma.RtmpSessionListRelationFilter
   transcriptSessions?: Prisma.TranscriptSessionListRelationFilter
 }, "id" | "email">
 
@@ -272,6 +275,7 @@ export type UserCreateInput = {
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   muxLiveSessions?: Prisma.MuxLiveSessionCreateNestedManyWithoutOwnerInput
+  rtmpSessions?: Prisma.RtmpSessionCreateNestedManyWithoutOwnerInput
   transcriptSessions?: Prisma.TranscriptSessionCreateNestedManyWithoutOwnerInput
 }
 
@@ -286,6 +290,7 @@ export type UserUncheckedCreateInput = {
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   muxLiveSessions?: Prisma.MuxLiveSessionUncheckedCreateNestedManyWithoutOwnerInput
+  rtmpSessions?: Prisma.RtmpSessionUncheckedCreateNestedManyWithoutOwnerInput
   transcriptSessions?: Prisma.TranscriptSessionUncheckedCreateNestedManyWithoutOwnerInput
 }
 
@@ -300,6 +305,7 @@ export type UserUpdateInput = {
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   muxLiveSessions?: Prisma.MuxLiveSessionUpdateManyWithoutOwnerNestedInput
+  rtmpSessions?: Prisma.RtmpSessionUpdateManyWithoutOwnerNestedInput
   transcriptSessions?: Prisma.TranscriptSessionUpdateManyWithoutOwnerNestedInput
 }
 
@@ -314,6 +320,7 @@ export type UserUncheckedUpdateInput = {
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   muxLiveSessions?: Prisma.MuxLiveSessionUncheckedUpdateManyWithoutOwnerNestedInput
+  rtmpSessions?: Prisma.RtmpSessionUncheckedUpdateManyWithoutOwnerNestedInput
   transcriptSessions?: Prisma.TranscriptSessionUncheckedUpdateManyWithoutOwnerNestedInput
 }
 
@@ -440,6 +447,20 @@ export type UserUpdateOneRequiredWithoutMuxLiveSessionsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutMuxLiveSessionsInput, Prisma.UserUpdateWithoutMuxLiveSessionsInput>, Prisma.UserUncheckedUpdateWithoutMuxLiveSessionsInput>
 }
 
+export type UserCreateNestedOneWithoutRtmpSessionsInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutRtmpSessionsInput, Prisma.UserUncheckedCreateWithoutRtmpSessionsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutRtmpSessionsInput
+  connect?: Prisma.UserWhereUniqueInput
+}
+
+export type UserUpdateOneRequiredWithoutRtmpSessionsNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutRtmpSessionsInput, Prisma.UserUncheckedCreateWithoutRtmpSessionsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutRtmpSessionsInput
+  upsert?: Prisma.UserUpsertWithoutRtmpSessionsInput
+  connect?: Prisma.UserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutRtmpSessionsInput, Prisma.UserUpdateWithoutRtmpSessionsInput>, Prisma.UserUncheckedUpdateWithoutRtmpSessionsInput>
+}
+
 export type UserCreateNestedOneWithoutTranscriptSessionsInput = {
   create?: Prisma.XOR<Prisma.UserCreateWithoutTranscriptSessionsInput, Prisma.UserUncheckedCreateWithoutTranscriptSessionsInput>
   connectOrCreate?: Prisma.UserCreateOrConnectWithoutTranscriptSessionsInput
@@ -464,6 +485,7 @@ export type UserCreateWithoutSessionsInput = {
   updatedAt?: Date | string
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   muxLiveSessions?: Prisma.MuxLiveSessionCreateNestedManyWithoutOwnerInput
+  rtmpSessions?: Prisma.RtmpSessionCreateNestedManyWithoutOwnerInput
   transcriptSessions?: Prisma.TranscriptSessionCreateNestedManyWithoutOwnerInput
 }
 
@@ -477,6 +499,7 @@ export type UserUncheckedCreateWithoutSessionsInput = {
   updatedAt?: Date | string
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   muxLiveSessions?: Prisma.MuxLiveSessionUncheckedCreateNestedManyWithoutOwnerInput
+  rtmpSessions?: Prisma.RtmpSessionUncheckedCreateNestedManyWithoutOwnerInput
   transcriptSessions?: Prisma.TranscriptSessionUncheckedCreateNestedManyWithoutOwnerInput
 }
 
@@ -506,6 +529,7 @@ export type UserUpdateWithoutSessionsInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   muxLiveSessions?: Prisma.MuxLiveSessionUpdateManyWithoutOwnerNestedInput
+  rtmpSessions?: Prisma.RtmpSessionUpdateManyWithoutOwnerNestedInput
   transcriptSessions?: Prisma.TranscriptSessionUpdateManyWithoutOwnerNestedInput
 }
 
@@ -519,6 +543,7 @@ export type UserUncheckedUpdateWithoutSessionsInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   muxLiveSessions?: Prisma.MuxLiveSessionUncheckedUpdateManyWithoutOwnerNestedInput
+  rtmpSessions?: Prisma.RtmpSessionUncheckedUpdateManyWithoutOwnerNestedInput
   transcriptSessions?: Prisma.TranscriptSessionUncheckedUpdateManyWithoutOwnerNestedInput
 }
 
@@ -532,6 +557,7 @@ export type UserCreateWithoutAccountsInput = {
   updatedAt?: Date | string
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   muxLiveSessions?: Prisma.MuxLiveSessionCreateNestedManyWithoutOwnerInput
+  rtmpSessions?: Prisma.RtmpSessionCreateNestedManyWithoutOwnerInput
   transcriptSessions?: Prisma.TranscriptSessionCreateNestedManyWithoutOwnerInput
 }
 
@@ -545,6 +571,7 @@ export type UserUncheckedCreateWithoutAccountsInput = {
   updatedAt?: Date | string
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   muxLiveSessions?: Prisma.MuxLiveSessionUncheckedCreateNestedManyWithoutOwnerInput
+  rtmpSessions?: Prisma.RtmpSessionUncheckedCreateNestedManyWithoutOwnerInput
   transcriptSessions?: Prisma.TranscriptSessionUncheckedCreateNestedManyWithoutOwnerInput
 }
 
@@ -574,6 +601,7 @@ export type UserUpdateWithoutAccountsInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   muxLiveSessions?: Prisma.MuxLiveSessionUpdateManyWithoutOwnerNestedInput
+  rtmpSessions?: Prisma.RtmpSessionUpdateManyWithoutOwnerNestedInput
   transcriptSessions?: Prisma.TranscriptSessionUpdateManyWithoutOwnerNestedInput
 }
 
@@ -587,6 +615,7 @@ export type UserUncheckedUpdateWithoutAccountsInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   muxLiveSessions?: Prisma.MuxLiveSessionUncheckedUpdateManyWithoutOwnerNestedInput
+  rtmpSessions?: Prisma.RtmpSessionUncheckedUpdateManyWithoutOwnerNestedInput
   transcriptSessions?: Prisma.TranscriptSessionUncheckedUpdateManyWithoutOwnerNestedInput
 }
 
@@ -600,6 +629,7 @@ export type UserCreateWithoutMuxLiveSessionsInput = {
   updatedAt?: Date | string
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
+  rtmpSessions?: Prisma.RtmpSessionCreateNestedManyWithoutOwnerInput
   transcriptSessions?: Prisma.TranscriptSessionCreateNestedManyWithoutOwnerInput
 }
 
@@ -613,6 +643,7 @@ export type UserUncheckedCreateWithoutMuxLiveSessionsInput = {
   updatedAt?: Date | string
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
+  rtmpSessions?: Prisma.RtmpSessionUncheckedCreateNestedManyWithoutOwnerInput
   transcriptSessions?: Prisma.TranscriptSessionUncheckedCreateNestedManyWithoutOwnerInput
 }
 
@@ -642,6 +673,7 @@ export type UserUpdateWithoutMuxLiveSessionsInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
+  rtmpSessions?: Prisma.RtmpSessionUpdateManyWithoutOwnerNestedInput
   transcriptSessions?: Prisma.TranscriptSessionUpdateManyWithoutOwnerNestedInput
 }
 
@@ -655,6 +687,79 @@ export type UserUncheckedUpdateWithoutMuxLiveSessionsInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
+  rtmpSessions?: Prisma.RtmpSessionUncheckedUpdateManyWithoutOwnerNestedInput
+  transcriptSessions?: Prisma.TranscriptSessionUncheckedUpdateManyWithoutOwnerNestedInput
+}
+
+export type UserCreateWithoutRtmpSessionsInput = {
+  id: string
+  name: string
+  email: string
+  emailVerified?: boolean
+  image?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
+  muxLiveSessions?: Prisma.MuxLiveSessionCreateNestedManyWithoutOwnerInput
+  transcriptSessions?: Prisma.TranscriptSessionCreateNestedManyWithoutOwnerInput
+}
+
+export type UserUncheckedCreateWithoutRtmpSessionsInput = {
+  id: string
+  name: string
+  email: string
+  emailVerified?: boolean
+  image?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
+  muxLiveSessions?: Prisma.MuxLiveSessionUncheckedCreateNestedManyWithoutOwnerInput
+  transcriptSessions?: Prisma.TranscriptSessionUncheckedCreateNestedManyWithoutOwnerInput
+}
+
+export type UserCreateOrConnectWithoutRtmpSessionsInput = {
+  where: Prisma.UserWhereUniqueInput
+  create: Prisma.XOR<Prisma.UserCreateWithoutRtmpSessionsInput, Prisma.UserUncheckedCreateWithoutRtmpSessionsInput>
+}
+
+export type UserUpsertWithoutRtmpSessionsInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutRtmpSessionsInput, Prisma.UserUncheckedUpdateWithoutRtmpSessionsInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutRtmpSessionsInput, Prisma.UserUncheckedCreateWithoutRtmpSessionsInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutRtmpSessionsInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutRtmpSessionsInput, Prisma.UserUncheckedUpdateWithoutRtmpSessionsInput>
+}
+
+export type UserUpdateWithoutRtmpSessionsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
+  muxLiveSessions?: Prisma.MuxLiveSessionUpdateManyWithoutOwnerNestedInput
+  transcriptSessions?: Prisma.TranscriptSessionUpdateManyWithoutOwnerNestedInput
+}
+
+export type UserUncheckedUpdateWithoutRtmpSessionsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
+  muxLiveSessions?: Prisma.MuxLiveSessionUncheckedUpdateManyWithoutOwnerNestedInput
   transcriptSessions?: Prisma.TranscriptSessionUncheckedUpdateManyWithoutOwnerNestedInput
 }
 
@@ -669,6 +774,7 @@ export type UserCreateWithoutTranscriptSessionsInput = {
   sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   muxLiveSessions?: Prisma.MuxLiveSessionCreateNestedManyWithoutOwnerInput
+  rtmpSessions?: Prisma.RtmpSessionCreateNestedManyWithoutOwnerInput
 }
 
 export type UserUncheckedCreateWithoutTranscriptSessionsInput = {
@@ -682,6 +788,7 @@ export type UserUncheckedCreateWithoutTranscriptSessionsInput = {
   sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   muxLiveSessions?: Prisma.MuxLiveSessionUncheckedCreateNestedManyWithoutOwnerInput
+  rtmpSessions?: Prisma.RtmpSessionUncheckedCreateNestedManyWithoutOwnerInput
 }
 
 export type UserCreateOrConnectWithoutTranscriptSessionsInput = {
@@ -711,6 +818,7 @@ export type UserUpdateWithoutTranscriptSessionsInput = {
   sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   muxLiveSessions?: Prisma.MuxLiveSessionUpdateManyWithoutOwnerNestedInput
+  rtmpSessions?: Prisma.RtmpSessionUpdateManyWithoutOwnerNestedInput
 }
 
 export type UserUncheckedUpdateWithoutTranscriptSessionsInput = {
@@ -724,6 +832,7 @@ export type UserUncheckedUpdateWithoutTranscriptSessionsInput = {
   sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   muxLiveSessions?: Prisma.MuxLiveSessionUncheckedUpdateManyWithoutOwnerNestedInput
+  rtmpSessions?: Prisma.RtmpSessionUncheckedUpdateManyWithoutOwnerNestedInput
 }
 
 
@@ -735,6 +844,7 @@ export type UserCountOutputType = {
   sessions: number
   accounts: number
   muxLiveSessions: number
+  rtmpSessions: number
   transcriptSessions: number
 }
 
@@ -742,6 +852,7 @@ export type UserCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.I
   sessions?: boolean | UserCountOutputTypeCountSessionsArgs
   accounts?: boolean | UserCountOutputTypeCountAccountsArgs
   muxLiveSessions?: boolean | UserCountOutputTypeCountMuxLiveSessionsArgs
+  rtmpSessions?: boolean | UserCountOutputTypeCountRtmpSessionsArgs
   transcriptSessions?: boolean | UserCountOutputTypeCountTranscriptSessionsArgs
 }
 
@@ -779,6 +890,13 @@ export type UserCountOutputTypeCountMuxLiveSessionsArgs<ExtArgs extends runtime.
 /**
  * UserCountOutputType without action
  */
+export type UserCountOutputTypeCountRtmpSessionsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.RtmpSessionWhereInput
+}
+
+/**
+ * UserCountOutputType without action
+ */
 export type UserCountOutputTypeCountTranscriptSessionsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   where?: Prisma.TranscriptSessionWhereInput
 }
@@ -795,6 +913,7 @@ export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   sessions?: boolean | Prisma.User$sessionsArgs<ExtArgs>
   accounts?: boolean | Prisma.User$accountsArgs<ExtArgs>
   muxLiveSessions?: boolean | Prisma.User$muxLiveSessionsArgs<ExtArgs>
+  rtmpSessions?: boolean | Prisma.User$rtmpSessionsArgs<ExtArgs>
   transcriptSessions?: boolean | Prisma.User$transcriptSessionsArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["user"]>
@@ -834,6 +953,7 @@ export type UserInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   sessions?: boolean | Prisma.User$sessionsArgs<ExtArgs>
   accounts?: boolean | Prisma.User$accountsArgs<ExtArgs>
   muxLiveSessions?: boolean | Prisma.User$muxLiveSessionsArgs<ExtArgs>
+  rtmpSessions?: boolean | Prisma.User$rtmpSessionsArgs<ExtArgs>
   transcriptSessions?: boolean | Prisma.User$transcriptSessionsArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
 }
@@ -846,6 +966,7 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     sessions: Prisma.$SessionPayload<ExtArgs>[]
     accounts: Prisma.$AccountPayload<ExtArgs>[]
     muxLiveSessions: Prisma.$MuxLiveSessionPayload<ExtArgs>[]
+    rtmpSessions: Prisma.$RtmpSessionPayload<ExtArgs>[]
     transcriptSessions: Prisma.$TranscriptSessionPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
@@ -1253,6 +1374,7 @@ export interface Prisma__UserClient<T, Null = never, ExtArgs extends runtime.Typ
   sessions<T extends Prisma.User$sessionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$sessionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$SessionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   accounts<T extends Prisma.User$accountsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$accountsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AccountPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   muxLiveSessions<T extends Prisma.User$muxLiveSessionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$muxLiveSessionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$MuxLiveSessionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  rtmpSessions<T extends Prisma.User$rtmpSessionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$rtmpSessionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$RtmpSessionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   transcriptSessions<T extends Prisma.User$transcriptSessionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$transcriptSessionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$TranscriptSessionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
@@ -1752,6 +1874,30 @@ export type User$muxLiveSessionsArgs<ExtArgs extends runtime.Types.Extensions.In
   take?: number
   skip?: number
   distinct?: Prisma.MuxLiveSessionScalarFieldEnum | Prisma.MuxLiveSessionScalarFieldEnum[]
+}
+
+/**
+ * User.rtmpSessions
+ */
+export type User$rtmpSessionsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the RtmpSession
+   */
+  select?: Prisma.RtmpSessionSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the RtmpSession
+   */
+  omit?: Prisma.RtmpSessionOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.RtmpSessionInclude<ExtArgs> | null
+  where?: Prisma.RtmpSessionWhereInput
+  orderBy?: Prisma.RtmpSessionOrderByWithRelationInput | Prisma.RtmpSessionOrderByWithRelationInput[]
+  cursor?: Prisma.RtmpSessionWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.RtmpSessionScalarFieldEnum | Prisma.RtmpSessionScalarFieldEnum[]
 }
 
 /**

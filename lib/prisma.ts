@@ -14,13 +14,17 @@ const globalForPrisma = globalThis as typeof globalThis & {
   prismaVersion?: number
 }
 
-const PRISMA_CLIENT_VERSION = 3
+const PRISMA_CLIENT_VERSION = 5
 
 const shouldCreatePrismaClient =
   !globalForPrisma.prisma ||
   globalForPrisma.prismaVersion !== PRISMA_CLIENT_VERSION ||
   typeof globalForPrisma.prisma.muxLiveSession?.findMany !== "function" ||
   typeof globalForPrisma.prisma.muxTranscriptEntry?.findMany !== "function" ||
+  typeof globalForPrisma.prisma.rtmpSession?.findMany !== "function" ||
+  typeof globalForPrisma.prisma.rtmpTranscriptEntry?.findMany !== "function" ||
+  typeof globalForPrisma.prisma.sharedSession?.findMany !== "function" ||
+  typeof globalForPrisma.prisma.sharedSessionEntry?.findMany !== "function" ||
   typeof globalForPrisma.prisma.transcriptSession?.findMany !== "function" ||
   typeof globalForPrisma.prisma.transcriptSessionEntry?.findMany !== "function"
 

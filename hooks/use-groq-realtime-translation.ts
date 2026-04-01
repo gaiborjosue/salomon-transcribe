@@ -50,15 +50,42 @@ interface GroqHook {
 
 interface GroqRouteResponse extends GroqTranslationPayload {
   metrics?: {
+    cfRay?: string
     classifierMs?: number
+    contextChars?: number
+    contextTruncated?: boolean
     decision?: "mixed" | "music" | "speech"
     groqMs?: number
     musicScore?: number
+    promptChars?: number
     speechScore?: number
     topLabel?: string
     totalMs?: number
+    xGroqRegion?: string
   }
   skipped?: boolean
+}
+
+interface MicQueuedSegment {
+  audio: Float32Array
+  perf: MicSegmentPerf
+}
+
+interface MicSegmentPerf {
+  callbackDispatchMs?: number
+  clientAssessMs?: number
+  deviceClassifierMs?: number
+  forcedFlush: boolean
+  hadCarryover: boolean
+  id: string
+  mergedPending: boolean
+  queueEnqueuedAt?: number
+  queueStartedAt?: number
+  segmentDurationMs: number
+  segmentReadyAt: number
+  skipReason?: "device-music" | "server-music"
+  source: "speech-end"
+  wavEncodeMs?: number
 }
 
 const MAX_SPEECH_SEGMENT_MS = 12000
@@ -240,6 +267,7 @@ type TfModule = typeof import("@tensorflow/tfjs")
 let browserTfPromise: Promise<TfModule> | null = null
 let browserYamnetPromise: Promise<Awaited<ReturnType<TfModule["loadGraphModel"]>>> | null =
   null
+let browserYamnetWarmupPromise: Promise<void> | null = null
 
 async function getBrowserTf() {
   if (!browserTfPromise) {
@@ -261,6 +289,19 @@ async function getBrowserYamnetModel() {
   return browserYamnetPromise
 }
 
+async function warmBrowserYamnetModel() {
+  if (!browserYamnetWarmupPromise) {
+    browserYamnetWarmupPromise = (async () => {
+      await classifyOnDevice(new Float32Array(16000))
+    })().catch((error) => {
+      browserYamnetWarmupPromise = null
+      throw error
+    })
+  }
+
+  return browserYamnetWarmupPromise
+}
+
 function sumIndices(data: Float32Array | Float32Array<ArrayBufferLike>, indices: number[]) {
   let sum = 0
   for (const index of indices) {
@@ -275,6 +316,110 @@ function shouldSkipForMusic(classification: DeviceClassification) {
     classification.musicScore >= 0.32 &&
     classification.speechScore <= 0.12
   )
+}
+
+function logMicPerformance(
+  perf: MicSegmentPerf,
+  details: {
+    classifierDecision?: "mixed" | "music" | "speech"
+    clientTotalMs: number
+    fetchRoundTripMs?: number
+    groqMs?: number
+    mode: "device" | "server"
+    musicScore?: number
+    promptChars?: number
+    responseSkipped?: boolean
+    serverClassifierMs?: number
+    serverTotalMs?: number
+    speechScore?: number
+    status: "aborted" | "completed" | "failed" | "skipped"
+    topLabel?: string
+    contextChars?: number
+    contextTruncated?: boolean
+    cfRay?: string
+    xGroqRegion?: string
+  }
+) {
+  const queueWaitMs =
+    typeof perf.queueStartedAt === "number"
+      ? perf.queueStartedAt - perf.segmentReadyAt
+      : undefined
+  const networkMs =
+    typeof details.fetchRoundTripMs === "number" &&
+    typeof details.serverTotalMs === "number"
+      ? Math.max(0, details.fetchRoundTripMs - details.serverTotalMs)
+      : undefined
+
+  console.groupCollapsed(
+    `[Mic][Perf][${perf.id}] ${details.status} total=${details.clientTotalMs.toFixed(1)}ms`
+  )
+  console.table({
+    callbackDispatchMs:
+      typeof perf.callbackDispatchMs === "number"
+        ? Number(perf.callbackDispatchMs.toFixed(1))
+        : "n/a",
+    clientAssessMs:
+      typeof perf.clientAssessMs === "number"
+        ? Number(perf.clientAssessMs.toFixed(1))
+        : "n/a",
+    deviceClassifierMs:
+      typeof perf.deviceClassifierMs === "number"
+        ? Number(perf.deviceClassifierMs.toFixed(1))
+        : "n/a",
+    fetchRoundTripMs:
+      typeof details.fetchRoundTripMs === "number"
+        ? Number(details.fetchRoundTripMs.toFixed(1))
+        : "n/a",
+    groqMs:
+      typeof details.groqMs === "number"
+        ? Number(details.groqMs.toFixed(1))
+        : "n/a",
+    mode: details.mode,
+    networkOverheadMs:
+      typeof networkMs === "number" ? Number(networkMs.toFixed(1)) : "n/a",
+    queueWaitMs:
+      typeof queueWaitMs === "number" ? Number(queueWaitMs.toFixed(1)) : "n/a",
+    segmentDurationMs: Number(perf.segmentDurationMs.toFixed(1)),
+    serverClassifierMs:
+      typeof details.serverClassifierMs === "number"
+        ? Number(details.serverClassifierMs.toFixed(1))
+        : "n/a",
+    serverTotalMs:
+      typeof details.serverTotalMs === "number"
+        ? Number(details.serverTotalMs.toFixed(1))
+        : "n/a",
+    source: perf.source,
+    status: details.status,
+    totalClientMs: Number(details.clientTotalMs.toFixed(1)),
+    wavEncodeMs:
+      typeof perf.wavEncodeMs === "number"
+        ? Number(perf.wavEncodeMs.toFixed(1))
+        : "n/a",
+  })
+
+  console.info("[Mic][Perf][Detail]", {
+    cfRay: details.cfRay,
+    classifierDecision: details.classifierDecision,
+    contextChars: details.contextChars,
+    contextTruncated: details.contextTruncated,
+    forcedFlush: perf.forcedFlush,
+    hadCarryover: perf.hadCarryover,
+    mergedPending: perf.mergedPending,
+    promptChars: details.promptChars,
+    responseSkipped: details.responseSkipped,
+    skipReason: perf.skipReason,
+    speechScore:
+      typeof details.speechScore === "number"
+        ? Number(details.speechScore.toFixed(3))
+        : undefined,
+    musicScore:
+      typeof details.musicScore === "number"
+        ? Number(details.musicScore.toFixed(3))
+        : undefined,
+    topLabel: details.topLabel,
+    xGroqRegion: details.xGroqRegion,
+  })
+  console.groupEnd()
 }
 
 async function classifyOnDevice(samples: Float32Array): Promise<DeviceClassification> {
@@ -323,17 +468,20 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
   const optionsRef = useRef<ConnectOptions | null>(null)
   const activeRef = useRef(false)
   const uploadInFlightRef = useRef(false)
-  const segmentQueueRef = useRef<Float32Array[]>([])
+  const segmentQueueRef = useRef<MicQueuedSegment[]>([])
   const forceFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingShortSegmentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isSpeakingRef = useRef(false)
   const abortControllerRef = useRef<AbortController | null>(null)
   const pendingShortSegmentRef = useRef<Float32Array | null>(null)
+  const pendingShortSegmentPerfRef = useRef<MicSegmentPerf | null>(null)
   const carryoverSegmentRef = useRef<Float32Array | null>(null)
   const forcedFlushRequestedRef = useRef(false)
   const committedTranslationsRef = useRef<string[]>([])
   const pausedRef = useRef(false)
   const activeClassifierModeRef = useRef<"device" | "server">("server")
+  const segmentPerfCounterRef = useRef(0)
+  const pendingInitialStreamRef = useRef<MediaStream | null>(null)
 
   const clearForceFlushTimer = useCallback(() => {
     if (forceFlushTimerRef.current) {
@@ -352,6 +500,7 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
   const clearTranscripts = useCallback(() => {
     segmentQueueRef.current = []
     pendingShortSegmentRef.current = null
+    pendingShortSegmentPerfRef.current = null
     carryoverSegmentRef.current = null
     committedTranslationsRef.current = []
   }, [])
@@ -366,6 +515,8 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
     clearTranscripts()
     abortControllerRef.current?.abort()
     abortControllerRef.current = null
+    pendingInitialStreamRef.current?.getTracks().forEach((track) => track.stop())
+    pendingInitialStreamRef.current = null
 
     const vad = vadRef.current
     vadRef.current = null
@@ -401,9 +552,12 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
     setStatus("transcribing")
     const abortController = new AbortController()
     abortControllerRef.current = abortController
+    nextSegment.perf.queueStartedAt = performance.now()
 
     try {
-      const wavBlob = encodeWav(nextSegment, 16000)
+      const wavEncodeStartedAt = performance.now()
+      const wavBlob = encodeWav(nextSegment.audio, 16000)
+      nextSegment.perf.wavEncodeMs = performance.now() - wavEncodeStartedAt
       const formData = new FormData()
       formData.append("audio", wavBlob, "segment.wav")
       const recentContext = committedTranslationsRef.current
@@ -422,12 +576,20 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
       let deviceClassification: DeviceClassification | null = null
       if (activeClassifierModeRef.current === "device") {
         try {
-          deviceClassification = await classifyOnDevice(nextSegment)
-          console.info(
-            `[Mic][Timing] mode=device classifier=${deviceClassification.classifierMs.toFixed(1)}ms decision=${deviceClassification.decision} top=${deviceClassification.topLabel} speech=${deviceClassification.speechScore.toFixed(3)} music=${deviceClassification.musicScore.toFixed(3)}`
-          )
+          deviceClassification = await classifyOnDevice(nextSegment.audio)
+          nextSegment.perf.deviceClassifierMs = deviceClassification.classifierMs
 
           if (shouldSkipForMusic(deviceClassification)) {
+            nextSegment.perf.skipReason = "device-music"
+            logMicPerformance(nextSegment.perf, {
+              classifierDecision: deviceClassification.decision,
+              clientTotalMs: performance.now() - nextSegment.perf.segmentReadyAt,
+              mode: activeClassifierModeRef.current,
+              musicScore: deviceClassification.musicScore,
+              speechScore: deviceClassification.speechScore,
+              status: "skipped",
+              topLabel: deviceClassification.topLabel,
+            })
             return
           }
 
@@ -446,11 +608,13 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
         }
       }
 
+      const fetchStartedAt = performance.now()
       const response = await fetch("/api/groq-translation", {
         method: "POST",
         body: formData,
         signal: abortController.signal,
       })
+      const fetchRoundTripMs = performance.now() - fetchStartedAt
 
       if (!response.ok) {
         const errorPayload = await response.json().catch(() => null)
@@ -462,26 +626,33 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
       }
 
       const payload = (await response.json()) as GroqRouteResponse
-      if (payload.metrics) {
-        const {
-          classifierMs,
-          decision,
-          groqMs,
-          musicScore,
-          speechScore,
-          topLabel,
-          totalMs,
-        } = payload.metrics
-        console.info(
-          `[Mic][Timing] mode=${activeClassifierModeRef.current} skipped=${payload.skipped ? "true" : "false"} classifier=${typeof classifierMs === "number" ? `${classifierMs.toFixed(1)}ms` : "n/a"} groq=${typeof groqMs === "number" ? `${groqMs.toFixed(1)}ms` : "n/a"} total=${typeof totalMs === "number" ? `${totalMs.toFixed(1)}ms` : "n/a"}${decision ? ` decision=${decision}` : ""}${topLabel ? ` top=${topLabel}` : ""}${typeof speechScore === "number" ? ` speech=${speechScore.toFixed(3)}` : ""}${typeof musicScore === "number" ? ` music=${musicScore.toFixed(3)}` : ""}`
-        )
-      }
-
       if (payload.skipped) {
+        nextSegment.perf.skipReason = "server-music"
+        logMicPerformance(nextSegment.perf, {
+          cfRay: payload.metrics?.cfRay,
+          classifierDecision: payload.metrics?.decision,
+          clientTotalMs: performance.now() - nextSegment.perf.segmentReadyAt,
+          contextChars: payload.metrics?.contextChars,
+          contextTruncated: payload.metrics?.contextTruncated,
+          fetchRoundTripMs,
+          groqMs: payload.metrics?.groqMs,
+          mode: activeClassifierModeRef.current,
+          musicScore: payload.metrics?.musicScore,
+          promptChars: payload.metrics?.promptChars,
+          responseSkipped: true,
+          serverClassifierMs: payload.metrics?.classifierMs,
+          serverTotalMs: payload.metrics?.totalMs,
+          speechScore: payload.metrics?.speechScore,
+          status: "skipped",
+          topLabel: payload.metrics?.topLabel,
+          xGroqRegion: payload.metrics?.xGroqRegion,
+        })
         return
       }
 
+      const assessStartedAt = performance.now()
       const assessment = assessGroqTranslation(payload)
+      nextSegment.perf.clientAssessMs = performance.now() - assessStartedAt
       const stableText = assessment.text
 
       if (stableText) {
@@ -496,17 +667,50 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
             ...committedTranslationsRef.current,
             dedupedText,
           ]
+          const callbackStartedAt = performance.now()
           config.onFinalTranscript?.({
             lowConfidence: assessment.lowConfidence,
             text: dedupedText,
           })
+          nextSegment.perf.callbackDispatchMs =
+            performance.now() - callbackStartedAt
         }
       }
+
+      logMicPerformance(nextSegment.perf, {
+        cfRay: payload.metrics?.cfRay,
+        classifierDecision: payload.metrics?.decision,
+        clientTotalMs: performance.now() - nextSegment.perf.segmentReadyAt,
+        contextChars: payload.metrics?.contextChars,
+        contextTruncated: payload.metrics?.contextTruncated,
+        fetchRoundTripMs,
+        groqMs: payload.metrics?.groqMs,
+        mode: activeClassifierModeRef.current,
+        musicScore: payload.metrics?.musicScore,
+        promptChars: payload.metrics?.promptChars,
+        responseSkipped: false,
+        serverClassifierMs: payload.metrics?.classifierMs,
+        serverTotalMs: payload.metrics?.totalMs,
+        speechScore: payload.metrics?.speechScore,
+        status: "completed",
+        topLabel: payload.metrics?.topLabel,
+        xGroqRegion: payload.metrics?.xGroqRegion,
+      })
     } catch (error) {
       if (abortController.signal.aborted) {
+        logMicPerformance(nextSegment.perf, {
+          clientTotalMs: performance.now() - nextSegment.perf.segmentReadyAt,
+          mode: activeClassifierModeRef.current,
+          status: "aborted",
+        })
         return
       }
 
+      logMicPerformance(nextSegment.perf, {
+        clientTotalMs: performance.now() - nextSegment.perf.segmentReadyAt,
+        mode: activeClassifierModeRef.current,
+        status: "failed",
+      })
       setStatus("error")
       if (error instanceof Error || error instanceof Event) {
         config.onError?.(error)
@@ -532,40 +736,78 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
     }
   }, [config])
 
-  const queueSegmentForUpload = useCallback((audio: Float32Array) => {
-    if (!activeRef.current || audio.length === 0) {
+  const queueSegmentForUpload = useCallback((segment: MicQueuedSegment) => {
+    if (!activeRef.current || segment.audio.length === 0) {
       return
     }
 
-    segmentQueueRef.current.push(audio)
+    segment.perf.queueEnqueuedAt = performance.now()
+    segmentQueueRef.current.push(segment)
     void processQueue()
   }, [processQueue])
 
   const flushPendingShortSegment = useCallback(() => {
     clearPendingShortTimer()
     const pending = pendingShortSegmentRef.current
+    const pendingPerf = pendingShortSegmentPerfRef.current
     pendingShortSegmentRef.current = null
+    pendingShortSegmentPerfRef.current = null
 
-    if (pending) {
-      queueSegmentForUpload(pending)
+    if (pending && pendingPerf) {
+      queueSegmentForUpload({
+        audio: pending,
+        perf: pendingPerf,
+      })
     }
   }, [clearPendingShortTimer, queueSegmentForUpload])
 
-  const enqueueSegment = useCallback((audio: Float32Array) => {
+  const enqueueSegment = useCallback(
+    ({
+      audio,
+      forcedFlush,
+      hadCarryover,
+    }: {
+      audio: Float32Array
+      forcedFlush: boolean
+      hadCarryover: boolean
+    }) => {
     if (!activeRef.current || audio.length === 0) {
       return
     }
 
     let nextAudio = audio
+    let perf: MicSegmentPerf = {
+      forcedFlush,
+      hadCarryover,
+      id: `seg-${++segmentPerfCounterRef.current}`,
+      mergedPending: false,
+      segmentDurationMs: getAudioDurationMs(audio, 16000),
+      segmentReadyAt: performance.now(),
+      source: "speech-end",
+    }
 
-    if (pendingShortSegmentRef.current) {
+    if (pendingShortSegmentRef.current && pendingShortSegmentPerfRef.current) {
       nextAudio = mergeAudioSegments(pendingShortSegmentRef.current, nextAudio)
+      perf = {
+        ...perf,
+        forcedFlush:
+          pendingShortSegmentPerfRef.current.forcedFlush || perf.forcedFlush,
+        hadCarryover:
+          pendingShortSegmentPerfRef.current.hadCarryover || perf.hadCarryover,
+        id: `${pendingShortSegmentPerfRef.current.id}+${perf.id}`,
+        mergedPending: true,
+        segmentDurationMs: getAudioDurationMs(nextAudio, 16000),
+        segmentReadyAt: Math.min(
+          pendingShortSegmentPerfRef.current.segmentReadyAt,
+          perf.segmentReadyAt
+        ),
+      }
       pendingShortSegmentRef.current = null
+      pendingShortSegmentPerfRef.current = null
       clearPendingShortTimer()
     }
 
-    const forcedFlushRequested = forcedFlushRequestedRef.current
-    if (forcedFlushRequested) {
+    if (forcedFlushRequestedRef.current) {
       carryoverSegmentRef.current = getAudioTail(
         nextAudio,
         FORCED_FLUSH_OVERLAP_MS,
@@ -577,8 +819,12 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
     const durationMs = getAudioDurationMs(nextAudio, 16000)
     const modeConfig = getModeConfig(optionsRef.current?.transcriptionMode)
 
-    if (!forcedFlushRequested && durationMs < modeConfig.minSegmentDurationMs) {
+    if (!forcedFlush && durationMs < modeConfig.minSegmentDurationMs) {
       pendingShortSegmentRef.current = nextAudio
+      pendingShortSegmentPerfRef.current = {
+        ...perf,
+        segmentDurationMs: durationMs,
+      }
       clearPendingShortTimer()
       pendingShortSegmentTimerRef.current = setTimeout(() => {
         flushPendingShortSegment()
@@ -586,7 +832,11 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
       return
     }
 
-    queueSegmentForUpload(nextAudio)
+    perf.segmentDurationMs = durationMs
+    queueSegmentForUpload({
+      audio: nextAudio,
+      perf,
+    })
   }, [clearPendingShortTimer, flushPendingShortSegment, queueSegmentForUpload])
 
   const restartAfterForcedPause = useCallback(async () => {
@@ -688,10 +938,31 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
     activeClassifierModeRef.current = options.classifierMode ?? "server"
 
     try {
+      const connectStartedAt = performance.now()
       const audioContext = new AudioContext({
         latencyHint: "interactive",
       })
       audioContextRef.current = audioContext
+      const audioConstraints: MediaTrackConstraints = {
+        channelCount: 1,
+        echoCancellation: options.microphone?.echoCancellation ?? false,
+        noiseSuppression: options.microphone?.noiseSuppression ?? false,
+        autoGainControl: options.microphone?.autoGainControl ?? true,
+      }
+
+      const permissionStartedAt = performance.now()
+      let initialStream: MediaStream | null = await navigator.mediaDevices.getUserMedia({
+        audio: audioConstraints,
+      })
+      pendingInitialStreamRef.current = initialStream
+      const permissionMs = performance.now() - permissionStartedAt
+
+      let classifierWarmupMs: number | undefined
+      if (activeClassifierModeRef.current === "device") {
+        const warmupStartedAt = performance.now()
+        await warmBrowserYamnetModel()
+        classifierWarmupMs = performance.now() - warmupStartedAt
+      }
 
       const vad = await MicVAD.new({
         startOnLoad: false,
@@ -703,15 +974,18 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
         minSpeechMs: VAD_MIN_SPEECH_MS,
         preSpeechPadMs: VAD_PRE_SPEECH_PAD_MS,
         submitUserSpeechOnPause: true,
-        getStream: async () =>
-          navigator.mediaDevices.getUserMedia({
-            audio: {
-              channelCount: 1,
-              echoCancellation: options.microphone?.echoCancellation ?? false,
-              noiseSuppression: options.microphone?.noiseSuppression ?? false,
-              autoGainControl: options.microphone?.autoGainControl ?? true,
-            },
-          }),
+        getStream: async () => {
+          if (initialStream) {
+            const stream = initialStream
+            initialStream = null
+            pendingInitialStreamRef.current = null
+            return stream
+          }
+
+          return navigator.mediaDevices.getUserMedia({
+            audio: audioConstraints,
+          })
+        },
         onSpeechStart: () => {
           isSpeakingRef.current = true
           scheduleForceFlush()
@@ -719,11 +993,16 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
         onSpeechEnd: async (audio) => {
           isSpeakingRef.current = false
           clearForceFlushTimer()
-          const nextAudio = carryoverSegmentRef.current
-            ? mergeAudioSegments(carryoverSegmentRef.current, audio)
+          const hadCarryover = Boolean(carryoverSegmentRef.current)
+          const nextAudio = hadCarryover
+            ? mergeAudioSegments(carryoverSegmentRef.current!, audio)
             : audio
           carryoverSegmentRef.current = null
-          enqueueSegment(nextAudio)
+          enqueueSegment({
+            audio: nextAudio,
+            forcedFlush: forcedFlushRequestedRef.current,
+            hadCarryover,
+          })
         },
         onVADMisfire: () => {
           isSpeakingRef.current = false
@@ -737,6 +1016,7 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
         await audioContext.resume()
       }
       await vad.start()
+      pendingInitialStreamRef.current = null
 
       if (!activeRef.current) {
         await vad.destroy()
@@ -747,9 +1027,14 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
         return
       }
 
+      console.info(
+        `[Mic][Connect] ready total=${(performance.now() - connectStartedAt).toFixed(1)}ms micPermission=${permissionMs.toFixed(1)}ms classifierWarmup=${typeof classifierWarmupMs === "number" ? `${classifierWarmupMs.toFixed(1)}ms` : "n/a"} mode=${activeClassifierModeRef.current}`
+      )
       setStatus("connected")
     } catch (error) {
       activeRef.current = false
+      pendingInitialStreamRef.current?.getTracks().forEach((track) => track.stop())
+      pendingInitialStreamRef.current = null
       setStatus("error")
 
       if (error instanceof Error || error instanceof Event) {

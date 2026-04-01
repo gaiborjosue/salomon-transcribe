@@ -1,11 +1,38 @@
 import { NextResponse } from "next/server"
 
+import { getApiSession } from "@/lib/api-auth"
+import { warmServerAudioClassifier } from "@/lib/audio-content-classifier"
 import { rtmpSessionManager } from "@/lib/rtmp-session-manager"
 import { startRtmpIngestSession } from "@/lib/rtmp-ingest-client"
 
 export const runtime = "nodejs"
 
+export async function GET(request: Request) {
+  const session = await getApiSession(request)
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized." }, { status: 401 })
+  }
+
+  try {
+    const sessions = await rtmpSessionManager.listOwnerSessions(session.user.id)
+    return NextResponse.json({
+      sessions: sessions.map(({ snapshot }) => ({ snapshot })),
+    })
+  } catch (error) {
+    console.error("[rtmp-sessions] list failed", error)
+    return NextResponse.json(
+      { error: "Unable to load RTMP sessions." },
+      { status: 500 }
+    )
+  }
+}
+
 export async function POST(request: Request) {
+  const authSession = await getApiSession(request)
+  if (!authSession) {
+    return NextResponse.json({ error: "Unauthorized." }, { status: 401 })
+  }
+
   try {
     const payload = (await request.json().catch(() => null)) as
       | { sourceTitle?: string }
@@ -13,7 +40,8 @@ export async function POST(request: Request) {
     const sourceTitle =
       typeof payload?.sourceTitle === "string" ? payload.sourceTitle.trim() : undefined
 
-    const session = rtmpSessionManager.createSession({
+    const session = await rtmpSessionManager.createSession({
+      ownerUserId: authSession.user.id,
       sourceTitle,
     })
 
@@ -23,6 +51,7 @@ export async function POST(request: Request) {
       "http://localhost:3000"
 
     try {
+      await warmServerAudioClassifier()
       await startRtmpIngestSession({
         appBaseUrl,
         ingestToken: session.ingestToken,
@@ -30,7 +59,7 @@ export async function POST(request: Request) {
         streamKey: session.snapshot.streamKey,
       })
     } catch (error) {
-      rtmpSessionManager.updateStatus({
+      await rtmpSessionManager.updateStatus({
         error:
           error instanceof Error
             ? error.message
@@ -43,17 +72,12 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({
-      hostToken: session.hostToken,
       snapshot: session.snapshot,
     })
   } catch (error) {
+    console.error("[rtmp-sessions] create failed", error)
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unable to create an RTMP session.",
-      },
+      { error: "Unable to create an RTMP session." },
       { status: 500 }
     )
   }

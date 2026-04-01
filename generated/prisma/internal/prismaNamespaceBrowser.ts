@@ -57,6 +57,10 @@ export const ModelName = {
   Verification: 'Verification',
   MuxLiveSession: 'MuxLiveSession',
   MuxTranscriptEntry: 'MuxTranscriptEntry',
+  RtmpSession: 'RtmpSession',
+  RtmpTranscriptEntry: 'RtmpTranscriptEntry',
+  SharedSession: 'SharedSession',
+  SharedSessionEntry: 'SharedSessionEntry',
   TranscriptSession: 'TranscriptSession',
   TranscriptSessionEntry: 'TranscriptSessionEntry'
 } as const
@@ -171,6 +175,63 @@ export const MuxTranscriptEntryScalarFieldEnum = {
 } as const
 
 export type MuxTranscriptEntryScalarFieldEnum = (typeof MuxTranscriptEntryScalarFieldEnum)[keyof typeof MuxTranscriptEntryScalarFieldEnum]
+
+
+export const RtmpSessionScalarFieldEnum = {
+  id: 'id',
+  ownerUserId: 'ownerUserId',
+  hostToken: 'hostToken',
+  ingestToken: 'ingestToken',
+  streamKey: 'streamKey',
+  publishUrl: 'publishUrl',
+  sourceTitle: 'sourceTitle',
+  status: 'status',
+  error: 'error',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+  endedAt: 'endedAt'
+} as const
+
+export type RtmpSessionScalarFieldEnum = (typeof RtmpSessionScalarFieldEnum)[keyof typeof RtmpSessionScalarFieldEnum]
+
+
+export const RtmpTranscriptEntryScalarFieldEnum = {
+  id: 'id',
+  sessionId: 'sessionId',
+  text: 'text',
+  lowConfidence: 'lowConfidence',
+  timestampMs: 'timestampMs',
+  createdAt: 'createdAt'
+} as const
+
+export type RtmpTranscriptEntryScalarFieldEnum = (typeof RtmpTranscriptEntryScalarFieldEnum)[keyof typeof RtmpTranscriptEntryScalarFieldEnum]
+
+
+export const SharedSessionScalarFieldEnum = {
+  id: 'id',
+  code: 'code',
+  hostToken: 'hostToken',
+  sourceType: 'sourceType',
+  sourceTitle: 'sourceTitle',
+  status: 'status',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+  endedAt: 'endedAt'
+} as const
+
+export type SharedSessionScalarFieldEnum = (typeof SharedSessionScalarFieldEnum)[keyof typeof SharedSessionScalarFieldEnum]
+
+
+export const SharedSessionEntryScalarFieldEnum = {
+  id: 'id',
+  sessionId: 'sessionId',
+  text: 'text',
+  lowConfidence: 'lowConfidence',
+  timestampMs: 'timestampMs',
+  createdAt: 'createdAt'
+} as const
+
+export type SharedSessionEntryScalarFieldEnum = (typeof SharedSessionEntryScalarFieldEnum)[keyof typeof SharedSessionEntryScalarFieldEnum]
 
 
 export const TranscriptSessionScalarFieldEnum = {

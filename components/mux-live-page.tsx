@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/tooltip"
 import type {
   MuxLiveStatus,
+  MuxPerfTrace,
   MuxProcessingStatus,
   MuxSessionSnapshot,
   MuxSessionSummary,
@@ -40,12 +41,10 @@ import type {
 import type { TranscriptSessionSummary } from "@/lib/transcript-session-types"
 
 interface HostSession {
-  hostToken: string
   snapshot: MuxSessionSnapshot
 }
 
 interface ResumableSession {
-  hostToken: string
   snapshot: MuxSessionSummary
 }
 
@@ -55,6 +54,65 @@ const MUX_ENDING_STATES = [
   { text: "Removing the Mux live stream" },
   { text: "Closing the Salomon session" },
 ]
+
+function logMuxPerformance(perf: MuxPerfTrace) {
+  console.groupCollapsed(
+    `[Mux][Perf][${perf.id}] ${perf.status} total=${perf.workerTotalMs.toFixed(1)}ms`
+  )
+  console.table({
+    fetchRoundTripMs:
+      typeof perf.fetchRoundTripMs === "number"
+        ? Number(perf.fetchRoundTripMs.toFixed(1))
+        : "n/a",
+    groqMs:
+      typeof perf.groqMs === "number" ? Number(perf.groqMs.toFixed(1)) : "n/a",
+    networkOverheadMs:
+      typeof perf.networkOverheadMs === "number"
+        ? Number(perf.networkOverheadMs.toFixed(1))
+        : "n/a",
+    queueWaitMs:
+      typeof perf.queueWaitMs === "number"
+        ? Number(perf.queueWaitMs.toFixed(1))
+        : "n/a",
+    responseSkipped: perf.responseSkipped,
+    segmentDurationMs: Number(perf.segmentDurationMs.toFixed(1)),
+    serverClassifierMs:
+      typeof perf.serverClassifierMs === "number"
+        ? Number(perf.serverClassifierMs.toFixed(1))
+        : "n/a",
+    serverTotalMs:
+      typeof perf.serverTotalMs === "number"
+        ? Number(perf.serverTotalMs.toFixed(1))
+        : "n/a",
+    source: perf.source,
+    status: perf.status,
+    textLength: typeof perf.textLength === "number" ? perf.textLength : "n/a",
+    wavEncodeMs:
+      typeof perf.wavEncodeMs === "number"
+        ? Number(perf.wavEncodeMs.toFixed(1))
+        : "n/a",
+    workerTotalMs: Number(perf.workerTotalMs.toFixed(1)),
+  })
+  console.info("[Mux][Perf][Detail]", {
+    cfRay: perf.cfRay,
+    classifierDecision: perf.classifierDecision,
+    contextChars: perf.contextChars,
+    contextTruncated: perf.contextTruncated,
+    lowConfidence: perf.lowConfidence,
+    musicScore:
+      typeof perf.musicScore === "number"
+        ? Number(perf.musicScore.toFixed(3))
+        : undefined,
+    promptChars: perf.promptChars,
+    speechScore:
+      typeof perf.speechScore === "number"
+        ? Number(perf.speechScore.toFixed(3))
+        : undefined,
+    topLabel: perf.topLabel,
+    xGroqRegion: perf.xGroqRegion,
+  })
+  console.groupEnd()
+}
 
 function SensitiveField({
   concealed = false,
@@ -389,7 +447,7 @@ export function MuxLivePage() {
       closeEvents()
 
       const eventSource = new EventSource(
-        `/api/mux/live-streams/${session.snapshot.id}/events?hostToken=${encodeURIComponent(session.hostToken)}`
+        `/api/mux/live-streams/${session.snapshot.id}/events`
       )
       eventSourceRef.current = eventSource
 
@@ -403,10 +461,7 @@ export function MuxLivePage() {
                 ...prev,
                 snapshot,
               }
-            : {
-                hostToken: session.hostToken,
-                snapshot,
-              }
+            : { snapshot }
         )
         setEntries(snapshot.entries)
         setStatus(snapshot.status)
@@ -435,6 +490,13 @@ export function MuxLivePage() {
         setError(payload.error || "")
       })
 
+      eventSource.addEventListener("perf", (event) => {
+        const payload = JSON.parse(
+          (event as MessageEvent<string>).data
+        ) as MuxPerfTrace
+        logMuxPerformance(payload)
+      })
+
       eventSource.onerror = () => {
         if (eventSource.readyState === EventSource.CLOSED) {
           toast.error("Mux session connection was interrupted.")
@@ -454,10 +516,10 @@ export function MuxLivePage() {
       })
 
       const payload = (await response.json().catch(() => null)) as
-        | { error?: string; hostToken?: string; snapshot?: MuxSessionSnapshot }
+        | { error?: string; snapshot?: MuxSessionSnapshot }
         | null
 
-      if (!response.ok || !payload?.hostToken || !payload.snapshot) {
+      if (!response.ok || !payload?.snapshot) {
         throw new Error(
           typeof payload?.error === "string"
             ? payload.error
@@ -465,10 +527,7 @@ export function MuxLivePage() {
         )
       }
 
-      const session = {
-        hostToken: payload.hostToken,
-        snapshot: payload.snapshot,
-      }
+      const session = { snapshot: payload.snapshot }
 
       setHostSession(session)
       setAvailableSessions((prev) =>
@@ -493,9 +552,7 @@ export function MuxLivePage() {
   const handleResume = useCallback(
     async (sessionToResume: ResumableSession) => {
       try {
-        const response = await fetch(
-          `/api/mux/live-streams/${sessionToResume.snapshot.id}?hostToken=${encodeURIComponent(sessionToResume.hostToken)}`
-        )
+        const response = await fetch(`/api/mux/live-streams/${sessionToResume.snapshot.id}`)
         const payload = (await response.json().catch(() => null)) as
           | { error?: string; snapshot?: MuxSessionSnapshot }
           | null
@@ -508,10 +565,7 @@ export function MuxLivePage() {
           )
         }
 
-        const session = {
-          hostToken: sessionToResume.hostToken,
-          snapshot: payload.snapshot,
-        }
+        const session = { snapshot: payload.snapshot }
 
         setHostSession(session)
         setEntries(payload.snapshot.entries)
@@ -540,9 +594,7 @@ export function MuxLivePage() {
     setIsRefreshing(true)
 
     try {
-      const response = await fetch(
-        `/api/mux/live-streams/${session.snapshot.id}?hostToken=${encodeURIComponent(session.hostToken)}`
-      )
+      const response = await fetch(`/api/mux/live-streams/${session.snapshot.id}`)
       const payload = (await response.json().catch(() => null)) as
         | { error?: string; snapshot?: MuxSessionSnapshot }
         | null
@@ -556,7 +608,6 @@ export function MuxLivePage() {
       }
 
       setHostSession({
-        hostToken: session.hostToken,
         snapshot: payload.snapshot,
       })
       setEntries(payload.snapshot.entries)
@@ -615,7 +666,6 @@ export function MuxLivePage() {
         },
         body: JSON.stringify({
           action,
-          hostToken: session.hostToken,
         }),
       })
 
@@ -653,12 +703,6 @@ export function MuxLivePage() {
     try {
       const response = await fetch(`/api/mux/live-streams/${session.snapshot.id}`, {
         method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          hostToken: session.hostToken,
-        }),
       })
 
       if (!response.ok) {

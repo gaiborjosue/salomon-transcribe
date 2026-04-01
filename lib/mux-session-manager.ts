@@ -11,6 +11,7 @@ import {
 } from "@/lib/mux-live-utils"
 import type {
   MuxLiveStatus,
+  MuxPerfTrace,
   MuxProcessingStatus,
   MuxSessionSnapshot,
   MuxSessionSummary,
@@ -23,6 +24,7 @@ import {
 type MuxSessionEvent =
   | { type: "snapshot"; snapshot: MuxSessionSnapshot }
   | { type: "entry"; entry: TranscriptEntry }
+  | { type: "perf"; perf: MuxPerfTrace }
   | { type: "status"; error?: string; muxStatus?: MuxLiveStatus; status: MuxProcessingStatus }
 
 interface MuxLiveStreamLike {
@@ -221,7 +223,7 @@ class MuxSessionManager {
     ownerUserId: string
   }) {
     const playbackId = getPublicMuxPlaybackId(liveStream)
-    const sharedSession = sharedSessionManager.createSession({
+    const sharedSession = await sharedSessionManager.createSession({
       sourceTitle: DEFAULT_SHARED_SOURCE_TITLE,
       sourceType: "livestream",
     })
@@ -315,7 +317,7 @@ class MuxSessionManager {
   }
 
   async ensureSharedSessionById(sharedSessionId: string) {
-    const existing = sharedSessionManager.getSnapshotById(sharedSessionId)
+    const existing = await sharedSessionManager.ensureSnapshotById(sharedSessionId)
     if (existing) {
       return existing
     }
@@ -340,7 +342,7 @@ class MuxSessionManager {
   }
 
   async ensureSharedSessionByCode(sharedSessionCode: string) {
-    const existing = sharedSessionManager.getSnapshotByCode(sharedSessionCode)
+    const existing = await sharedSessionManager.ensureSnapshotByCode(sharedSessionCode)
     if (existing) {
       return existing
     }
@@ -479,6 +481,40 @@ class MuxSessionManager {
     return true
   }
 
+  async emitPerf({
+    ingestToken,
+    perf,
+    sessionId,
+  }: {
+    ingestToken: string
+    perf: MuxPerfTrace
+    sessionId: string
+  }) {
+    const session = await prisma.muxLiveSession.findUnique({
+      where: { id: sessionId },
+      select: {
+        endedAt: true,
+        id: true,
+        ingestToken: true,
+        muxStatus: true,
+      },
+    })
+
+    if (!session || session.ingestToken !== ingestToken) {
+      return false
+    }
+
+    if (session.endedAt || session.muxStatus === "deleted") {
+      return true
+    }
+
+    this.emit(sessionId, {
+      type: "perf",
+      perf,
+    })
+    return true
+  }
+
   async appendEntry({
     ingestToken,
     lowConfidence,
@@ -559,7 +595,7 @@ class MuxSessionManager {
       sharedSessionHostToken: session.sharedSessionHostToken,
       sharedSessionId: session.sharedSessionId,
     })
-    sharedSessionManager.appendEntry({
+    await sharedSessionManager.appendEntry({
       entry,
       hostToken: session.sharedSessionHostToken,
       sessionId: session.sharedSessionId,
@@ -625,13 +661,13 @@ class MuxSessionManager {
     })
 
     await this.ensureSharedSessionLoaded(updated)
-    sharedSessionManager.updateMetadata({
+    await sharedSessionManager.updateMetadata({
       hostToken: updated.sharedSessionHostToken,
       sessionId: updated.sharedSessionId,
       sourceTitle: DEFAULT_SHARED_SOURCE_TITLE,
     })
     if (updated.endedAt) {
-      sharedSessionManager.endSession({
+      await sharedSessionManager.endSession({
         hostToken: updated.sharedSessionHostToken,
         sessionId: updated.sharedSessionId,
       })
@@ -706,10 +742,11 @@ class MuxSessionManager {
     })
 
     await this.ensureSharedSessionLoaded(updated)
-    sharedSessionManager.endSession({
+    await sharedSessionManager.endSession({
       hostToken: updated.sharedSessionHostToken,
       sessionId: updated.sharedSessionId,
     })
+
     this.emit(sessionId, {
       type: "status",
       muxStatus: updated.muxStatus,
@@ -768,6 +805,12 @@ class MuxSessionManager {
       },
     })
 
+    await this.ensureSharedSessionLoaded(updated)
+    await sharedSessionManager.endSession({
+      hostToken: updated.sharedSessionHostToken,
+      sessionId: updated.sharedSessionId,
+    })
+
     this.emit(sessionId, {
       type: "status",
       muxStatus: updated.muxStatus,
@@ -784,14 +827,15 @@ declare global {
   var __muxSessionManagerVersion__: number | undefined
 }
 
-const MUX_SESSION_MANAGER_VERSION = 4
+const MUX_SESSION_MANAGER_VERSION = 6
 
 const shouldCreateManager =
   !globalThis.__muxSessionManager__ ||
   globalThis.__muxSessionManagerVersion__ !== MUX_SESSION_MANAGER_VERSION ||
   typeof globalThis.__muxSessionManager__.listOwnerSessions !== "function" ||
   typeof globalThis.__muxSessionManager__.prepareWorkerStart !== "function" ||
-  typeof globalThis.__muxSessionManager__.ensureSharedSessionByCode !== "function"
+  typeof globalThis.__muxSessionManager__.ensureSharedSessionByCode !== "function" ||
+  typeof globalThis.__muxSessionManager__.emitPerf !== "function"
 
 const managerInstance: MuxSessionManager = shouldCreateManager
   ? new MuxSessionManager()

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 
+import { warmServerAudioClassifier } from "@/lib/audio-content-classifier"
 import { mux } from "@/lib/mux"
 import { startMuxIngestSession, stopMuxIngestSession } from "@/lib/mux-ingest-client"
 import { muxSessionManager } from "@/lib/mux-session-manager"
@@ -34,6 +35,7 @@ export async function POST(request: Request) {
 
       if (workerPayload) {
         try {
+          await warmServerAudioClassifier()
           await startMuxIngestSession({
             appBaseUrl: getAppBaseUrl(),
             ingestToken: workerPayload.ingestToken,

@@ -18,7 +18,7 @@ export async function POST(
   }
 
   try {
-    const session = rtmpSessionManager.getIngestSession(sessionId, ingestToken)
+    const session = await rtmpSessionManager.getIngestSession(sessionId, ingestToken)
     if (!session) {
       return NextResponse.json({ error: "RTMP session not found." }, { status: 404 })
     }
@@ -40,7 +40,7 @@ export async function POST(
       return NextResponse.json({ error: "Missing audio file upload." }, { status: 400 })
     }
 
-    rtmpSessionManager.updateStatus({
+    await rtmpSessionManager.updateStatus({
       ingestToken,
       sessionId,
       status: "transcribing",
@@ -52,7 +52,7 @@ export async function POST(
     })
 
     if (result.skipped) {
-      rtmpSessionManager.updateStatus({
+      await rtmpSessionManager.updateStatus({
         ingestToken,
         sessionId,
         status: "connected",
@@ -67,14 +67,14 @@ export async function POST(
 
     const assessment = assessGroqTranslation(result.payload)
     if (assessment.text) {
-      rtmpSessionManager.appendEntry({
+      await rtmpSessionManager.appendEntry({
         ingestToken,
         lowConfidence: assessment.lowConfidence,
         sessionId,
         text: assessment.text,
       })
     } else {
-      rtmpSessionManager.updateStatus({
+      await rtmpSessionManager.updateStatus({
         ingestToken,
         sessionId,
         status: "connected",
@@ -92,13 +92,17 @@ export async function POST(
     const message =
       error instanceof Error ? error.message : "Unable to process the RTMP audio."
 
-    rtmpSessionManager.updateStatus({
+    await rtmpSessionManager.updateStatus({
       error: message,
       ingestToken,
       sessionId,
       status: "error",
     })
 
-    return NextResponse.json({ error: message }, { status: 500 })
+    console.error("[rtmp-sessions] chunk failed", error)
+    return NextResponse.json(
+      { error: "Unable to process the RTMP audio." },
+      { status: 500 }
+    )
   }
 }

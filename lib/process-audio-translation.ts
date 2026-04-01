@@ -10,13 +10,18 @@ import {
 } from "@/lib/groq-translation"
 
 export interface AudioTranslationMetrics {
+  cfRay?: string
   classifierMs?: number
+  contextChars?: number
+  contextTruncated?: boolean
   decision?: "mixed" | "music" | "speech"
   groqMs?: number
   musicScore?: number
+  promptChars?: number
   speechScore?: number
   topLabel?: string
   totalMs: number
+  xGroqRegion?: string
 }
 
 export interface ProcessAudioTranslationResult {
@@ -78,22 +83,25 @@ export async function processAudioTranslation({
     }
   }
 
-  const groqStartedAt = performance.now()
-  const payload = await translateAudioChunk({
+  const { meta, payload } = await translateAudioChunk({
     audioFile,
     context,
   })
-  const groqMs = performance.now() - groqStartedAt
 
   return {
     metrics: {
+      cfRay: meta.cfRay,
       classifierMs,
+      contextChars: meta.contextChars,
+      contextTruncated: meta.contextTruncated,
       decision: classification?.decision,
-      groqMs,
+      groqMs: meta.groqMs,
       musicScore: classification?.musicScore,
+      promptChars: meta.promptChars,
       speechScore: classification?.speechScore,
       topLabel: classification?.topLabel,
       totalMs: performance.now() - requestStartedAt,
+      xGroqRegion: meta.xGroqRegion,
     },
     payload,
     skipped: false,

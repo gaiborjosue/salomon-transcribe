@@ -10,6 +10,33 @@ export type MuxProcessingStatus =
 
 export type MuxLiveStatus = "active" | "deleted" | "disabled" | "idle"
 
+export interface MuxPerfTrace {
+  cfRay?: string
+  classifierDecision?: "mixed" | "music" | "speech"
+  contextChars?: number
+  contextTruncated?: boolean
+  fetchRoundTripMs?: number
+  groqMs?: number
+  id: string
+  lowConfidence?: boolean
+  musicScore?: number
+  networkOverheadMs?: number
+  promptChars?: number
+  queueWaitMs?: number
+  responseSkipped: boolean
+  segmentDurationMs: number
+  serverClassifierMs?: number
+  serverTotalMs?: number
+  source: "mux-hls"
+  speechScore?: number
+  status: "completed" | "failed" | "skipped"
+  textLength?: number
+  topLabel?: string
+  wavEncodeMs?: number
+  workerTotalMs: number
+  xGroqRegion?: string
+}
+
 export interface MuxSessionSnapshot {
   audioOnly: boolean
   createdAt: number

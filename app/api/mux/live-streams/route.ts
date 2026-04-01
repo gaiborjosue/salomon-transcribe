@@ -15,15 +15,13 @@ export async function GET(request: Request) {
 
   try {
     const sessions = await muxSessionManager.listOwnerSessions(session.user.id)
-    return NextResponse.json({ sessions })
+    return NextResponse.json({
+      sessions: sessions.map(({ snapshot }) => ({ snapshot })),
+    })
   } catch (error) {
+    console.error("[mux-live-streams] list failed", error)
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unable to load Mux sessions.",
-      },
+      { error: "Unable to load Mux sessions." },
       { status: 500 }
     )
   }
@@ -54,7 +52,6 @@ export async function POST(request: Request) {
     const playbackId = getPublicMuxPlaybackId(liveStream)
 
     return NextResponse.json({
-      hostToken: persistedSession.hostToken,
       snapshot: {
         ...persistedSession.snapshot,
         audioOnly: Boolean(liveStream.audio_only),
@@ -64,13 +61,9 @@ export async function POST(request: Request) {
       },
     })
   } catch (error) {
+    console.error("[mux-live-streams] create failed", error)
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unable to create the Mux live stream.",
-      },
+      { error: "Unable to create the Mux live stream." },
       { status: 500 }
     )
   }

@@ -86,6 +86,7 @@ const CLASSIFIER_TIMEOUT_MS = 15_000
 class AudioContentClassifier {
   private worker: ChildProcessWithoutNullStreams | null = null
   private readonly pending = new Map<string, PendingRequest>()
+  private warmupPromise: Promise<void> | null = null
   private workerReadyPromise: Promise<void> | null = null
   private workerReadyResolve: (() => void) | null = null
   private stdoutBuffer = ""
@@ -238,16 +239,51 @@ class AudioContentClassifier {
       })
     })
   }
+
+  async warm() {
+    if (this.warmupPromise) {
+      await this.warmupPromise
+      return
+    }
+
+    this.warmupPromise = (async () => {
+      await this.ensureWorker()
+    })()
+
+    try {
+      await this.warmupPromise
+    } finally {
+      this.warmupPromise = null
+    }
+  }
 }
 
 declare global {
   // eslint-disable-next-line no-var
   var __audioContentClassifier__: AudioContentClassifier | undefined
+  // eslint-disable-next-line no-var
+  var __audioContentClassifierVersion__: number | undefined
 }
 
-export const audioContentClassifier =
-  globalThis.__audioContentClassifier__ ?? new AudioContentClassifier()
+const AUDIO_CONTENT_CLASSIFIER_VERSION = 2
 
-if (!globalThis.__audioContentClassifier__) {
+const shouldCreateClassifier =
+  !globalThis.__audioContentClassifier__ ||
+  globalThis.__audioContentClassifierVersion__ !==
+    AUDIO_CONTENT_CLASSIFIER_VERSION ||
+  typeof globalThis.__audioContentClassifier__.warm !== "function" ||
+  typeof globalThis.__audioContentClassifier__.classifyPcm16 !== "function"
+
+export const audioContentClassifier: AudioContentClassifier = shouldCreateClassifier
+  ? new AudioContentClassifier()
+  : globalThis.__audioContentClassifier__!
+
+if (shouldCreateClassifier) {
   globalThis.__audioContentClassifier__ = audioContentClassifier
+  globalThis.__audioContentClassifierVersion__ =
+    AUDIO_CONTENT_CLASSIFIER_VERSION
+}
+
+export async function warmServerAudioClassifier() {
+  await audioContentClassifier.warm()
 }

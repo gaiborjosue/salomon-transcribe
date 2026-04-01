@@ -222,6 +222,40 @@ export type IntWithAggregatesFilter<$PrismaModel = never> = {
   _max?: Prisma.NestedIntFilter<$PrismaModel>
 }
 
+export type EnumSharedSessionSourceFilter<$PrismaModel = never> = {
+  equals?: $Enums.SharedSessionSource | Prisma.EnumSharedSessionSourceFieldRefInput<$PrismaModel>
+  in?: $Enums.SharedSessionSource[] | Prisma.ListEnumSharedSessionSourceFieldRefInput<$PrismaModel>
+  notIn?: $Enums.SharedSessionSource[] | Prisma.ListEnumSharedSessionSourceFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumSharedSessionSourceFilter<$PrismaModel> | $Enums.SharedSessionSource
+}
+
+export type EnumSharedSessionStatusFilter<$PrismaModel = never> = {
+  equals?: $Enums.SharedSessionStatus | Prisma.EnumSharedSessionStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.SharedSessionStatus[] | Prisma.ListEnumSharedSessionStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.SharedSessionStatus[] | Prisma.ListEnumSharedSessionStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumSharedSessionStatusFilter<$PrismaModel> | $Enums.SharedSessionStatus
+}
+
+export type EnumSharedSessionSourceWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.SharedSessionSource | Prisma.EnumSharedSessionSourceFieldRefInput<$PrismaModel>
+  in?: $Enums.SharedSessionSource[] | Prisma.ListEnumSharedSessionSourceFieldRefInput<$PrismaModel>
+  notIn?: $Enums.SharedSessionSource[] | Prisma.ListEnumSharedSessionSourceFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumSharedSessionSourceWithAggregatesFilter<$PrismaModel> | $Enums.SharedSessionSource
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumSharedSessionSourceFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumSharedSessionSourceFilter<$PrismaModel>
+}
+
+export type EnumSharedSessionStatusWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.SharedSessionStatus | Prisma.EnumSharedSessionStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.SharedSessionStatus[] | Prisma.ListEnumSharedSessionStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.SharedSessionStatus[] | Prisma.ListEnumSharedSessionStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumSharedSessionStatusWithAggregatesFilter<$PrismaModel> | $Enums.SharedSessionStatus
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumSharedSessionStatusFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumSharedSessionStatusFilter<$PrismaModel>
+}
+
 export type EnumTranscriptSessionSourceFilter<$PrismaModel = never> = {
   equals?: $Enums.TranscriptSessionSource | Prisma.EnumTranscriptSessionSourceFieldRefInput<$PrismaModel>
   in?: $Enums.TranscriptSessionSource[] | Prisma.ListEnumTranscriptSessionSourceFieldRefInput<$PrismaModel>
@@ -458,6 +492,40 @@ export type NestedFloatFilter<$PrismaModel = never> = {
   gt?: number | Prisma.FloatFieldRefInput<$PrismaModel>
   gte?: number | Prisma.FloatFieldRefInput<$PrismaModel>
   not?: Prisma.NestedFloatFilter<$PrismaModel> | number
+}
+
+export type NestedEnumSharedSessionSourceFilter<$PrismaModel = never> = {
+  equals?: $Enums.SharedSessionSource | Prisma.EnumSharedSessionSourceFieldRefInput<$PrismaModel>
+  in?: $Enums.SharedSessionSource[] | Prisma.ListEnumSharedSessionSourceFieldRefInput<$PrismaModel>
+  notIn?: $Enums.SharedSessionSource[] | Prisma.ListEnumSharedSessionSourceFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumSharedSessionSourceFilter<$PrismaModel> | $Enums.SharedSessionSource
+}
+
+export type NestedEnumSharedSessionStatusFilter<$PrismaModel = never> = {
+  equals?: $Enums.SharedSessionStatus | Prisma.EnumSharedSessionStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.SharedSessionStatus[] | Prisma.ListEnumSharedSessionStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.SharedSessionStatus[] | Prisma.ListEnumSharedSessionStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumSharedSessionStatusFilter<$PrismaModel> | $Enums.SharedSessionStatus
+}
+
+export type NestedEnumSharedSessionSourceWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.SharedSessionSource | Prisma.EnumSharedSessionSourceFieldRefInput<$PrismaModel>
+  in?: $Enums.SharedSessionSource[] | Prisma.ListEnumSharedSessionSourceFieldRefInput<$PrismaModel>
+  notIn?: $Enums.SharedSessionSource[] | Prisma.ListEnumSharedSessionSourceFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumSharedSessionSourceWithAggregatesFilter<$PrismaModel> | $Enums.SharedSessionSource
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumSharedSessionSourceFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumSharedSessionSourceFilter<$PrismaModel>
+}
+
+export type NestedEnumSharedSessionStatusWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.SharedSessionStatus | Prisma.EnumSharedSessionStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.SharedSessionStatus[] | Prisma.ListEnumSharedSessionStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.SharedSessionStatus[] | Prisma.ListEnumSharedSessionStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumSharedSessionStatusWithAggregatesFilter<$PrismaModel> | $Enums.SharedSessionStatus
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumSharedSessionStatusFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumSharedSessionStatusFilter<$PrismaModel>
 }
 
 export type NestedEnumTranscriptSessionSourceFilter<$PrismaModel = never> = {

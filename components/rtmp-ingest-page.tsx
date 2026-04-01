@@ -12,6 +12,7 @@ import {
   Pause,
   Play,
   RadioTower,
+  RefreshCw,
   Square,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -29,11 +30,18 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import type { RtmpSessionSnapshot, RtmpSessionStatus } from "@/lib/rtmp-types"
+import type {
+  RtmpSessionSnapshot,
+  RtmpSessionStatus,
+  RtmpSessionSummary,
+} from "@/lib/rtmp-types"
 
 interface HostSession {
-  hostToken: string
   snapshot: RtmpSessionSnapshot
+}
+
+interface ResumableSession {
+  snapshot: RtmpSessionSummary
 }
 
 function StreamKeyField({ value }: { value: string }) {
@@ -152,10 +160,12 @@ function InlineAdvancedField({
 
 export function RtmpIngestPage() {
   const [hostSession, setHostSession] = useState<HostSession | null>(null)
+  const [availableSessions, setAvailableSessions] = useState<ResumableSession[]>([])
   const [entries, setEntries] = useState<TranscriptEntry[]>([])
   const [status, setStatus] = useState<RtmpSessionStatus>("disconnected")
   const [error, setError] = useState("")
   const [isStarting, setIsStarting] = useState(false)
+  const [isLoadingSessions, setIsLoadingSessions] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [copiedField, setCopiedField] = useState<
     "ffmpegCommand" | "publishUrl" | "streamKey" | null
@@ -178,12 +188,47 @@ export function RtmpIngestPage() {
     }
   }, [closeEvents])
 
+  const loadAvailableSessions = useCallback(async () => {
+    setIsLoadingSessions(true)
+
+    try {
+      const response = await fetch("/api/rtmp-sessions")
+      const payload = (await response.json().catch(() => null)) as
+        | { error?: string; sessions?: ResumableSession[] }
+        | null
+
+      if (!response.ok || !payload?.sessions) {
+        throw new Error(
+          typeof payload?.error === "string"
+            ? payload.error
+            : "Unable to load active RTMP sessions."
+        )
+      }
+
+      setAvailableSessions(payload.sessions)
+    } catch (nextError) {
+      const message =
+        nextError instanceof Error
+          ? nextError.message
+          : "Unable to load active RTMP sessions."
+      setError(message)
+    } finally {
+      setIsLoadingSessions(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!hostSession) {
+      void loadAvailableSessions()
+    }
+  }, [hostSession, loadAvailableSessions])
+
   const subscribe = useCallback(
     (session: HostSession) => {
       closeEvents()
 
       const eventSource = new EventSource(
-        `/api/rtmp-sessions/${session.snapshot.id}/events?hostToken=${encodeURIComponent(session.hostToken)}`
+        `/api/rtmp-sessions/${session.snapshot.id}/events`
       )
       eventSourceRef.current = eventSource
 
@@ -197,10 +242,7 @@ export function RtmpIngestPage() {
                 ...prev,
                 snapshot,
               }
-            : {
-                hostToken: session.hostToken,
-                snapshot,
-              }
+            : { snapshot }
         )
         setEntries(snapshot.entries)
         setStatus(snapshot.status)
@@ -247,10 +289,10 @@ export function RtmpIngestPage() {
       })
 
       const payload = (await response.json().catch(() => null)) as
-        | { error?: string; hostToken?: string; snapshot?: RtmpSessionSnapshot }
+        | { error?: string; snapshot?: RtmpSessionSnapshot }
         | null
 
-      if (!response.ok || !payload?.hostToken || !payload.snapshot) {
+      if (!response.ok || !payload?.snapshot) {
         throw new Error(
           typeof payload?.error === "string"
             ? payload.error
@@ -258,12 +300,12 @@ export function RtmpIngestPage() {
         )
       }
 
-      const session = {
-        hostToken: payload.hostToken,
-        snapshot: payload.snapshot,
-      }
+      const session = { snapshot: payload.snapshot }
 
       setHostSession(session)
+      setAvailableSessions((prev) =>
+        prev.filter((item) => item.snapshot.id !== payload.snapshot?.id)
+      )
       setEntries(payload.snapshot.entries)
       setStatus(payload.snapshot.status)
       subscribe(session)
@@ -279,6 +321,41 @@ export function RtmpIngestPage() {
     }
   }, [subscribe])
 
+  const handleResume = useCallback(
+    async (sessionToResume: ResumableSession) => {
+      try {
+        const response = await fetch(`/api/rtmp-sessions/${sessionToResume.snapshot.id}`)
+        const payload = (await response.json().catch(() => null)) as
+          | { error?: string; snapshot?: RtmpSessionSnapshot }
+          | null
+
+        if (!response.ok || !payload?.snapshot) {
+          throw new Error(
+            typeof payload?.error === "string"
+              ? payload.error
+              : "Unable to resume the RTMP session."
+          )
+        }
+
+        const session = { snapshot: payload.snapshot }
+
+        setHostSession(session)
+        setEntries(payload.snapshot.entries)
+        setStatus(payload.snapshot.status)
+        setError(payload.snapshot.error || "")
+        subscribe(session)
+      } catch (nextError) {
+        const message =
+          nextError instanceof Error
+            ? nextError.message
+            : "Unable to resume the RTMP session."
+        setError(message)
+        toast.error(message)
+      }
+    },
+    [subscribe]
+  )
+
   const handleStop = useCallback(async () => {
     const session = hostSession
     if (!session) {
@@ -293,7 +370,6 @@ export function RtmpIngestPage() {
         },
         body: JSON.stringify({
           action: "stop",
-          hostToken: session.hostToken,
         }),
       })
 
@@ -345,11 +421,12 @@ export function RtmpIngestPage() {
     } finally {
       closeEvents()
       setHostSession(null)
+      await loadAvailableSessions()
       setEntries([])
       setStatus("disconnected")
       setError("")
     }
-  }, [closeEvents, entries, hostSession])
+  }, [closeEvents, entries, hostSession, loadAvailableSessions])
 
   const handlePauseToggle = useCallback(async () => {
     const session = hostSession
@@ -367,7 +444,6 @@ export function RtmpIngestPage() {
         },
         body: JSON.stringify({
           action,
-          hostToken: session.hostToken,
         }),
       })
 
@@ -547,6 +623,63 @@ export function RtmpIngestPage() {
                   {isStarting ? "Creating RTMP session..." : "Create RTMP session"}
                 </Button>
               </div>
+
+              {availableSessions.length > 0 ? (
+                <div className="space-y-3 rounded-[28px] border border-white/10 bg-black/20 p-4 sm:p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="text-sm font-medium text-white/86">
+                        Active RTMP sessions
+                      </div>
+                      <p className="text-sm leading-6 text-white/48">
+                        Re-enter an ongoing encoder session without stopping transcription.
+                      </p>
+                    </div>
+                    <Button
+                      onClick={() => void loadAvailableSessions()}
+                      variant="ghost"
+                      size="icon"
+                      className="h-10 w-10 rounded-full border border-white/10 bg-black/20 text-white/70 hover:bg-white/8 hover:text-white"
+                    >
+                      <RefreshCw
+                        className={`h-4 w-4 ${isLoadingSessions ? "animate-spin" : ""}`}
+                      />
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    {availableSessions.map((sessionItem) => (
+                      <div
+                        key={sessionItem.snapshot.id}
+                        className="flex items-center justify-between gap-3 rounded-[20px] border border-white/10 bg-white/[0.03] px-4 py-3"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-white/84">
+                            {sessionItem.snapshot.status === "paused"
+                              ? "Paused session"
+                              : sessionItem.snapshot.status === "connected" ||
+                                  sessionItem.snapshot.status === "transcribing"
+                                ? "Live now"
+                                : "Ready to publish"}
+                          </div>
+                          <div className="mt-1 text-xs text-white/46">
+                            {sessionItem.snapshot.id}
+                          </div>
+                          <div className="mt-1 text-xs tracking-[0.14em] text-white/56">
+                            {sessionItem.snapshot.streamKey}
+                          </div>
+                        </div>
+                        <Button
+                          onClick={() => void handleResume(sessionItem)}
+                          variant="ghost"
+                          className="h-10 rounded-full border border-white/10 bg-black/20 px-4 text-white/72 hover:bg-white/8 hover:text-white"
+                        >
+                          Resume
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
 
               {error ? (
                 <div className="text-center text-sm text-red-300/78">{error}</div>

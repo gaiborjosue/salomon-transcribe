@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto"
 
 import type { TranscriptEntry } from "@/components/transcriber-ui"
+import prisma from "@/lib/prisma"
+import { normalizeShareCode, SHARE_CODE_PREFIX } from "@/lib/share-code-utils"
 
 export type SharedSourceType = "microphone" | "livestream"
 export type SharedSessionStatus = "active" | "ended"
@@ -43,39 +45,12 @@ const MAX_ENTRIES = 500
 const SESSION_TTL_MS = 6 * 60 * 60 * 1000
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 const CODE_LENGTH = 6
-export const SHARE_CODE_PREFIX = "SAL"
-
 function generateRawCode() {
   let code = ""
   for (let index = 0; index < CODE_LENGTH; index++) {
     code += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)]
   }
   return code
-}
-
-export function formatShareCode(input: string) {
-  const compact = input.toUpperCase().replace(/[^A-Z0-9]/g, "")
-  let body = compact
-
-  if (body.startsWith(SHARE_CODE_PREFIX)) {
-    body = body.slice(SHARE_CODE_PREFIX.length)
-  }
-
-  body = body.slice(0, CODE_LENGTH)
-  return body ? `${SHARE_CODE_PREFIX}-${body}` : `${SHARE_CODE_PREFIX}-`
-}
-
-export function normalizeShareCode(input: string) {
-  const compact = input.toUpperCase().replace(/[^A-Z0-9]/g, "")
-  const body = compact.startsWith(SHARE_CODE_PREFIX)
-    ? compact.slice(SHARE_CODE_PREFIX.length)
-    : compact
-
-  if (body.length !== CODE_LENGTH) {
-    return null
-  }
-
-  return `${SHARE_CODE_PREFIX}-${body}`
 }
 
 function generateCode() {
@@ -94,10 +69,7 @@ class SharedSessionManager {
         continue
       }
 
-      if (
-        session.status === "ended" ||
-        now - session.updatedAt > SESSION_TTL_MS
-      ) {
+      if (session.status === "ended" || now - session.updatedAt > SESSION_TTL_MS) {
         this.sessions.delete(id)
         this.sessionsByCode.delete(session.code)
       }
@@ -123,7 +95,91 @@ class SharedSessionManager {
     }
   }
 
-  createSession({
+  private toEntry(entry: {
+    id: string
+    lowConfidence: boolean | null
+    text: string
+    timestampMs: number
+  }): TranscriptEntry {
+    return {
+      id: entry.id,
+      lowConfidence: entry.lowConfidence ?? undefined,
+      text: entry.text,
+      timestampMs: entry.timestampMs,
+    }
+  }
+
+  private async loadRecentEntries(sessionId: string) {
+    const rows = await prisma.sharedSessionEntry.findMany({
+      where: { sessionId },
+      orderBy: { createdAt: "desc" },
+      take: MAX_ENTRIES,
+    })
+
+    return rows.reverse().map((entry) => this.toEntry(entry))
+  }
+
+  private async hydrateById(id: string) {
+    this.cleanupExpiredSessions()
+
+    const existing = this.sessions.get(id)
+    if (existing) {
+      return existing
+    }
+
+    const session = await prisma.sharedSession.findUnique({
+      where: { id },
+    })
+
+    if (!session) {
+      return null
+    }
+
+    const hydrated: SharedSession = {
+      code: session.code,
+      createdAt: session.createdAt.getTime(),
+      entries: await this.loadRecentEntries(session.id),
+      hostToken: session.hostToken,
+      id: session.id,
+      listeners: new Set(),
+      sourceTitle: session.sourceTitle ?? undefined,
+      sourceType: session.sourceType,
+      status: session.status,
+      updatedAt: session.updatedAt.getTime(),
+      viewerCount: 0,
+    }
+
+    this.sessions.set(hydrated.id, hydrated)
+    this.sessionsByCode.set(hydrated.code, hydrated.id)
+    return hydrated
+  }
+
+  private async hydrateByCode(code: string) {
+    this.cleanupExpiredSessions()
+
+    const normalizedCode = normalizeShareCode(code)
+    if (!normalizedCode) {
+      return null
+    }
+
+    const existingId = this.sessionsByCode.get(normalizedCode)
+    if (existingId) {
+      return this.hydrateById(existingId)
+    }
+
+    const session = await prisma.sharedSession.findUnique({
+      where: { code: normalizedCode },
+      select: { id: true },
+    })
+
+    if (!session) {
+      return null
+    }
+
+    return this.hydrateById(session.id)
+  }
+
+  async createSession({
     code,
     createdAt,
     hostToken,
@@ -145,29 +201,68 @@ class SharedSessionManager {
     this.cleanupExpiredSessions()
 
     let resolvedCode = code ?? generateCode()
-    while (this.sessionsByCode.has(resolvedCode)) {
-      if (code) {
-        throw new Error("Shared session code already exists.")
+    if (!code) {
+      while (
+        this.sessionsByCode.has(resolvedCode) ||
+        (await prisma.sharedSession.findUnique({
+          where: { code: resolvedCode },
+          select: { id: true },
+        }))
+      ) {
+        resolvedCode = generateCode()
       }
-      resolvedCode = generateCode()
     }
 
     const sessionId = id ?? randomUUID()
-    if (this.sessions.has(sessionId)) {
-      throw new Error("Shared session id already exists.")
-    }
+    const nextHostToken = hostToken ?? randomUUID()
+    const nextCreatedAt = createdAt ?? Date.now()
+    const nextEntries = (initialEntries ?? []).slice(-MAX_ENTRIES)
+    const nextStatus = status ?? "active"
+
+    const persisted = await prisma.sharedSession.create({
+      data: {
+        code: resolvedCode,
+        createdAt: new Date(nextCreatedAt),
+        endedAt: nextStatus === "ended" ? new Date(nextCreatedAt) : null,
+        hostToken: nextHostToken,
+        id: sessionId,
+        sourceTitle,
+        sourceType,
+        status: nextStatus,
+        entries: nextEntries.length
+          ? {
+              create: nextEntries.map((entry) => ({
+                lowConfidence: entry.lowConfidence,
+                text: entry.text,
+                timestampMs: entry.timestampMs,
+              })),
+            }
+          : undefined,
+      },
+      include: {
+        entries: {
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            lowConfidence: true,
+            text: true,
+            timestampMs: true,
+          },
+        },
+      },
+    })
 
     const session: SharedSession = {
-      code: resolvedCode,
-      createdAt: createdAt ?? Date.now(),
-      entries: (initialEntries ?? []).slice(-MAX_ENTRIES),
-      hostToken: hostToken ?? randomUUID(),
-      id: sessionId,
+      code: persisted.code,
+      createdAt: persisted.createdAt.getTime(),
+      entries: persisted.entries.map((entry) => this.toEntry(entry)),
+      hostToken: persisted.hostToken,
+      id: persisted.id,
       listeners: new Set(),
-      sourceTitle,
-      sourceType,
-      status: status ?? "active",
-      updatedAt: Date.now(),
+      sourceTitle: persisted.sourceTitle ?? undefined,
+      sourceType: persisted.sourceType,
+      status: persisted.status,
+      updatedAt: persisted.updatedAt.getTime(),
       viewerCount: 0,
     }
 
@@ -180,7 +275,7 @@ class SharedSessionManager {
     }
   }
 
-  ensureSession({
+  async ensureSession({
     code,
     createdAt,
     entries,
@@ -201,7 +296,7 @@ class SharedSessionManager {
   }) {
     this.cleanupExpiredSessions()
 
-    const existing = this.sessions.get(id)
+    const existing = await this.hydrateById(id)
     if (existing) {
       return {
         hostToken: existing.hostToken,
@@ -248,6 +343,24 @@ class SharedSessionManager {
     return this.createSnapshot(session)
   }
 
+  async ensureSnapshotById(id: string) {
+    const session = await this.hydrateById(id)
+    if (!session) {
+      return null
+    }
+
+    return this.createSnapshot(session)
+  }
+
+  async ensureSnapshotByCode(code: string) {
+    const session = await this.hydrateByCode(code)
+    if (!session) {
+      return null
+    }
+
+    return this.createSnapshot(session)
+  }
+
   subscribe(
     sessionId: string,
     listener: (event: SharedSessionEvent) => void,
@@ -287,7 +400,7 @@ class SharedSessionManager {
     }
   }
 
-  appendEntry({
+  async appendEntry({
     entry,
     hostToken,
     sessionId,
@@ -296,10 +409,28 @@ class SharedSessionManager {
     hostToken: string
     sessionId: string
   }) {
-    const session = this.sessions.get(sessionId)
+    const session = await this.hydrateById(sessionId)
     if (!session || session.hostToken !== hostToken) {
       return false
     }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.sharedSessionEntry.create({
+        data: {
+          lowConfidence: entry.lowConfidence,
+          sessionId,
+          text: entry.text,
+          timestampMs: entry.timestampMs,
+        },
+      })
+
+      await tx.sharedSession.update({
+        where: { id: sessionId },
+        data: {
+          updatedAt: new Date(),
+        },
+      })
+    })
 
     session.entries = [...session.entries, entry].slice(-MAX_ENTRIES)
     session.updatedAt = Date.now()
@@ -307,7 +438,7 @@ class SharedSessionManager {
     return true
   }
 
-  syncSession({
+  async syncSession({
     entries,
     hostToken,
     sessionId,
@@ -318,12 +449,38 @@ class SharedSessionManager {
     sessionId: string
     sourceTitle?: string
   }) {
-    const session = this.sessions.get(sessionId)
+    const session = await this.hydrateById(sessionId)
     if (!session || session.hostToken !== hostToken) {
       return false
     }
 
-    session.entries = entries.slice(-MAX_ENTRIES)
+    const nextEntries = entries.slice(-MAX_ENTRIES)
+
+    await prisma.$transaction(async (tx) => {
+      await tx.sharedSession.update({
+        where: { id: sessionId },
+        data: {
+          sourceTitle,
+        },
+      })
+
+      await tx.sharedSessionEntry.deleteMany({
+        where: { sessionId },
+      })
+
+      if (nextEntries.length > 0) {
+        await tx.sharedSessionEntry.createMany({
+          data: nextEntries.map((entry) => ({
+            lowConfidence: entry.lowConfidence,
+            sessionId,
+            text: entry.text,
+            timestampMs: entry.timestampMs,
+          })),
+        })
+      }
+    })
+
+    session.entries = nextEntries
     session.sourceTitle = sourceTitle
     session.updatedAt = Date.now()
     this.emit(session, {
@@ -333,7 +490,7 @@ class SharedSessionManager {
     return true
   }
 
-  updateMetadata({
+  async updateMetadata({
     hostToken,
     sessionId,
     sourceTitle,
@@ -342,10 +499,17 @@ class SharedSessionManager {
     sessionId: string
     sourceTitle?: string
   }) {
-    const session = this.sessions.get(sessionId)
+    const session = await this.hydrateById(sessionId)
     if (!session || session.hostToken !== hostToken) {
       return false
     }
+
+    await prisma.sharedSession.update({
+      where: { id: sessionId },
+      data: {
+        sourceTitle,
+      },
+    })
 
     session.sourceTitle = sourceTitle
     session.updatedAt = Date.now()
@@ -357,17 +521,25 @@ class SharedSessionManager {
     return true
   }
 
-  endSession({
+  async endSession({
     hostToken,
     sessionId,
   }: {
     hostToken: string
     sessionId: string
   }) {
-    const session = this.sessions.get(sessionId)
+    const session = await this.hydrateById(sessionId)
     if (!session || session.hostToken !== hostToken) {
       return false
     }
+
+    await prisma.sharedSession.update({
+      where: { id: sessionId },
+      data: {
+        endedAt: new Date(),
+        status: "ended",
+      },
+    })
 
     session.status = "ended"
     session.updatedAt = Date.now()
@@ -387,12 +559,14 @@ declare global {
   var __sharedSessionManagerVersion__: number | undefined
 }
 
-const SHARED_SESSION_MANAGER_VERSION = 2
+const SHARED_SESSION_MANAGER_VERSION = 4
 
 const shouldCreateManager =
   !globalThis.__sharedSessionManager__ ||
   globalThis.__sharedSessionManagerVersion__ !== SHARED_SESSION_MANAGER_VERSION ||
-  typeof globalThis.__sharedSessionManager__.ensureSession !== "function"
+  typeof globalThis.__sharedSessionManager__.ensureSession !== "function" ||
+  typeof globalThis.__sharedSessionManager__.ensureSnapshotById !== "function" ||
+  typeof globalThis.__sharedSessionManager__.ensureSnapshotByCode !== "function"
 
 const managerInstance: SharedSessionManager = shouldCreateManager
   ? new SharedSessionManager()

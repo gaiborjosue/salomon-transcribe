@@ -14,11 +14,10 @@ export async function GET(
   const { sessionId } = await params
   const url = new URL(request.url)
   const countAsViewer = url.searchParams.get("viewer") !== "0"
-  let session = sharedSessionManager.getSessionById(sessionId)
+  let session = await sharedSessionManager.ensureSnapshotById(sessionId)
 
   if (!session) {
-    await muxSessionManager.ensureSharedSessionById(sessionId)
-    session = sharedSessionManager.getSessionById(sessionId)
+    session = await muxSessionManager.ensureSharedSessionById(sessionId)
   }
 
   if (!session) {

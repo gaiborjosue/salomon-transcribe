@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { getApiSession } from "@/lib/api-auth"
+import { warmServerAudioClassifier } from "@/lib/audio-content-classifier"
 import { startMuxIngestSession } from "@/lib/mux-ingest-client"
 import { mux } from "@/lib/mux"
 import { muxSessionManager } from "@/lib/mux-session-manager"
@@ -26,26 +27,21 @@ export async function POST(
     const payload = (await request.json().catch(() => null)) as
       | {
           action?: "pause" | "resume"
-          hostToken?: string
         }
       | null
 
-    if (
-      !payload?.action ||
-      typeof payload.hostToken !== "string" ||
-      !["pause", "resume"].includes(payload.action)
-    ) {
+    if (!payload?.action || !["pause", "resume"].includes(payload.action)) {
       return NextResponse.json({ error: "Unsupported action." }, { status: 400 })
     }
 
     const snapshot = await muxSessionManager.getOwnerSession(liveStreamId, session.user.id)
-    if (!snapshot || snapshot.hostToken !== payload.hostToken) {
+    if (!snapshot) {
       return NextResponse.json({ error: "Mux session not found." }, { status: 404 })
     }
 
     if (payload.action === "pause") {
       const updated = await muxSessionManager.setHostStatus({
-        hostToken: payload.hostToken,
+        hostToken: snapshot.hostToken,
         sessionId: liveStreamId,
         status: "paused",
       })
@@ -58,7 +54,7 @@ export async function POST(
     }
 
     const updated = await muxSessionManager.setHostStatus({
-      hostToken: payload.hostToken,
+      hostToken: snapshot.hostToken,
       sessionId: liveStreamId,
       status: "connected",
     })
@@ -73,6 +69,7 @@ export async function POST(
       const workerPayload = await muxSessionManager.prepareWorkerStart(liveStreamId)
       if (workerPayload) {
         try {
+          await warmServerAudioClassifier()
           await startMuxIngestSession({
             appBaseUrl: getAppBaseUrl(),
             ingestToken: workerPayload.ingestToken,
@@ -92,11 +89,9 @@ export async function POST(
 
     return NextResponse.json({ ok: true })
   } catch (error) {
+    console.error("[mux-live-streams] control failed", error)
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error ? error.message : "Unable to update the Mux session.",
-      },
+      { error: "Unable to update the Mux session." },
       { status: 500 }
     )
   }

@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server"
 
-import {
-  normalizeShareCode,
-  sharedSessionManager,
-} from "@/lib/shared-session-manager"
+import { sharedSessionManager } from "@/lib/shared-session-manager"
 import { muxSessionManager } from "@/lib/mux-session-manager"
+import { normalizeShareCode } from "@/lib/share-code-utils"
 
 export const runtime = "nodejs"
 
@@ -22,7 +20,7 @@ export async function POST(request: Request) {
     }
 
     const snapshot =
-      sharedSessionManager.getSnapshotByCode(code) ??
+      (await sharedSessionManager.ensureSnapshotByCode(code)) ??
       (await muxSessionManager.ensureSharedSessionByCode(code))
 
     if (!snapshot) {

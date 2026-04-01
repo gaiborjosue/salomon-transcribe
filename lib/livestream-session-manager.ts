@@ -8,10 +8,8 @@ import type {
   LivestreamSessionStatus,
   LivestreamTranscriptEntry,
 } from "@/lib/livestream-types"
-import {
-  audioContentClassifier,
-  shouldSkipForMusic,
-} from "@/lib/audio-content-classifier"
+import { warmServerAudioClassifier } from "@/lib/audio-content-classifier"
+import { processAudioTranslation } from "@/lib/process-audio-translation"
 import {
   ServerSpeechSegmenter,
   getServerSpeechSegmenterConfig,
@@ -20,7 +18,7 @@ import {
   dedupeBoundaryText,
   normalizeWhitespace,
 } from "@/lib/transcript-text-utils"
-import { assessGroqTranslation, translateAudioChunk } from "@/lib/groq-translation"
+import { assessGroqTranslation } from "@/lib/groq-translation"
 
 type LivestreamEvent =
   | { type: "segment"; entry: LivestreamTranscriptEntry }
@@ -216,6 +214,7 @@ class LivestreamSession {
     this.startedAtMs = Date.now()
 
     try {
+      await warmServerAudioClassifier()
       const metadata = await resolveLivestreamMetadata(this.streamUrl)
       if (!metadata.directAudioUrl) {
         throw new Error("Unable to resolve the livestream audio URL from YouTube.")
@@ -412,52 +411,31 @@ class LivestreamSession {
     this.setStatus("transcribing")
 
     try {
-      let classification:
-        | Awaited<ReturnType<typeof audioContentClassifier.classifyPcm16>>
-        | undefined
-      let classifierMs: number | undefined
-
-      try {
-        const classifyStartedAt = performance.now()
-        classification = await audioContentClassifier.classifyPcm16(
-          nextChunk,
-          PCM_SAMPLE_RATE
-        )
-        classifierMs = performance.now() - classifyStartedAt
-
-        if (shouldSkipForMusic(classification)) {
-          console.info(
-            `[Livestream][Timing] skipped=music classifier=${classifierMs.toFixed(1)}ms top=${classification.topLabel} speech=${classification.speechScore.toFixed(3)} music=${classification.musicScore.toFixed(3)}`
-          )
-          if (isInactiveStatus(this.status as LivestreamSessionStatus)) {
-            return
-          }
-          this.setStatus("connected")
-          return
-        }
-      } catch {
-        // If the local classifier is unavailable, fall back to normal translation.
-      }
-
       const wavBuffer = encodeWav(nextChunk, PCM_SAMPLE_RATE)
       const audioFile = new File([wavBuffer], "livestream-chunk.wav", {
         type: "audio/wav",
       })
-      const groqStartedAt = performance.now()
-      const payload = await translateAudioChunk({
+      const result = await processAudioTranslation({
         audioFile,
         context: this.committedTranslations.join(" ").trim(),
       })
-      const groqMs = performance.now() - groqStartedAt
 
       if (isInactiveStatus(this.status as LivestreamSessionStatus)) {
         return
       }
 
-      const assessment = assessGroqTranslation(payload)
+      if (result.skipped) {
+        console.info(
+          `[Livestream][Timing] skipped=music classifier=${result.metrics.classifierMs?.toFixed(1) ?? "n/a"}ms total=${result.metrics.totalMs.toFixed(1)}ms region=${result.metrics.xGroqRegion ?? "n/a"} contextChars=${result.metrics.contextChars ?? 0}${result.metrics.contextTruncated ? " truncated=true" : ""} top=${result.metrics.topLabel ?? "unknown"} speech=${result.metrics.speechScore?.toFixed(3) ?? "n/a"} music=${result.metrics.musicScore?.toFixed(3) ?? "n/a"}`
+        )
+        this.setStatus("connected")
+        return
+      }
+
+      const assessment = assessGroqTranslation(result.payload)
 
       console.info(
-        `[Livestream][Timing] skipped=false classifier=${classifierMs?.toFixed(1) ?? "n/a"}ms groq=${groqMs.toFixed(1)}ms${classification ? ` top=${classification.topLabel} speech=${classification.speechScore.toFixed(3)} music=${classification.musicScore.toFixed(3)}` : ""}`
+        `[Livestream][Timing] skipped=false classifier=${result.metrics.classifierMs?.toFixed(1) ?? "n/a"}ms groq=${result.metrics.groqMs?.toFixed(1) ?? "n/a"}ms total=${result.metrics.totalMs.toFixed(1)}ms region=${result.metrics.xGroqRegion ?? "n/a"} contextChars=${result.metrics.contextChars ?? 0}${result.metrics.contextTruncated ? " truncated=true" : ""}${result.metrics.topLabel ? ` top=${result.metrics.topLabel} speech=${result.metrics.speechScore?.toFixed(3) ?? "n/a"} music=${result.metrics.musicScore?.toFixed(3) ?? "n/a"}` : ""}`
       )
 
       if (assessment.text) {
@@ -495,6 +473,7 @@ class LivestreamSession {
 
     this.setStatus("connecting")
     try {
+      await warmServerAudioClassifier()
       const metadata = await resolveLivestreamMetadata(this.streamUrl)
       if (!metadata.directAudioUrl) {
         throw new Error("Unable to reconnect to the livestream audio feed.")

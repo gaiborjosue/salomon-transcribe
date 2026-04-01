@@ -390,6 +390,10 @@ export const ModelName = {
   Verification: 'Verification',
   MuxLiveSession: 'MuxLiveSession',
   MuxTranscriptEntry: 'MuxTranscriptEntry',
+  RtmpSession: 'RtmpSession',
+  RtmpTranscriptEntry: 'RtmpTranscriptEntry',
+  SharedSession: 'SharedSession',
+  SharedSessionEntry: 'SharedSessionEntry',
   TranscriptSession: 'TranscriptSession',
   TranscriptSessionEntry: 'TranscriptSessionEntry'
 } as const
@@ -407,7 +411,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "session" | "account" | "verification" | "muxLiveSession" | "muxTranscriptEntry" | "transcriptSession" | "transcriptSessionEntry"
+    modelProps: "user" | "session" | "account" | "verification" | "muxLiveSession" | "muxTranscriptEntry" | "rtmpSession" | "rtmpTranscriptEntry" | "sharedSession" | "sharedSessionEntry" | "transcriptSession" | "transcriptSessionEntry"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -855,6 +859,302 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    RtmpSession: {
+      payload: Prisma.$RtmpSessionPayload<ExtArgs>
+      fields: Prisma.RtmpSessionFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.RtmpSessionFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RtmpSessionPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.RtmpSessionFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RtmpSessionPayload>
+        }
+        findFirst: {
+          args: Prisma.RtmpSessionFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RtmpSessionPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.RtmpSessionFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RtmpSessionPayload>
+        }
+        findMany: {
+          args: Prisma.RtmpSessionFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RtmpSessionPayload>[]
+        }
+        create: {
+          args: Prisma.RtmpSessionCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RtmpSessionPayload>
+        }
+        createMany: {
+          args: Prisma.RtmpSessionCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.RtmpSessionCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RtmpSessionPayload>[]
+        }
+        delete: {
+          args: Prisma.RtmpSessionDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RtmpSessionPayload>
+        }
+        update: {
+          args: Prisma.RtmpSessionUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RtmpSessionPayload>
+        }
+        deleteMany: {
+          args: Prisma.RtmpSessionDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.RtmpSessionUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.RtmpSessionUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RtmpSessionPayload>[]
+        }
+        upsert: {
+          args: Prisma.RtmpSessionUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RtmpSessionPayload>
+        }
+        aggregate: {
+          args: Prisma.RtmpSessionAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateRtmpSession>
+        }
+        groupBy: {
+          args: Prisma.RtmpSessionGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.RtmpSessionGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.RtmpSessionCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.RtmpSessionCountAggregateOutputType> | number
+        }
+      }
+    }
+    RtmpTranscriptEntry: {
+      payload: Prisma.$RtmpTranscriptEntryPayload<ExtArgs>
+      fields: Prisma.RtmpTranscriptEntryFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.RtmpTranscriptEntryFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RtmpTranscriptEntryPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.RtmpTranscriptEntryFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RtmpTranscriptEntryPayload>
+        }
+        findFirst: {
+          args: Prisma.RtmpTranscriptEntryFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RtmpTranscriptEntryPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.RtmpTranscriptEntryFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RtmpTranscriptEntryPayload>
+        }
+        findMany: {
+          args: Prisma.RtmpTranscriptEntryFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RtmpTranscriptEntryPayload>[]
+        }
+        create: {
+          args: Prisma.RtmpTranscriptEntryCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RtmpTranscriptEntryPayload>
+        }
+        createMany: {
+          args: Prisma.RtmpTranscriptEntryCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.RtmpTranscriptEntryCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RtmpTranscriptEntryPayload>[]
+        }
+        delete: {
+          args: Prisma.RtmpTranscriptEntryDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RtmpTranscriptEntryPayload>
+        }
+        update: {
+          args: Prisma.RtmpTranscriptEntryUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RtmpTranscriptEntryPayload>
+        }
+        deleteMany: {
+          args: Prisma.RtmpTranscriptEntryDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.RtmpTranscriptEntryUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.RtmpTranscriptEntryUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RtmpTranscriptEntryPayload>[]
+        }
+        upsert: {
+          args: Prisma.RtmpTranscriptEntryUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RtmpTranscriptEntryPayload>
+        }
+        aggregate: {
+          args: Prisma.RtmpTranscriptEntryAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateRtmpTranscriptEntry>
+        }
+        groupBy: {
+          args: Prisma.RtmpTranscriptEntryGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.RtmpTranscriptEntryGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.RtmpTranscriptEntryCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.RtmpTranscriptEntryCountAggregateOutputType> | number
+        }
+      }
+    }
+    SharedSession: {
+      payload: Prisma.$SharedSessionPayload<ExtArgs>
+      fields: Prisma.SharedSessionFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.SharedSessionFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SharedSessionPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.SharedSessionFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SharedSessionPayload>
+        }
+        findFirst: {
+          args: Prisma.SharedSessionFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SharedSessionPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.SharedSessionFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SharedSessionPayload>
+        }
+        findMany: {
+          args: Prisma.SharedSessionFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SharedSessionPayload>[]
+        }
+        create: {
+          args: Prisma.SharedSessionCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SharedSessionPayload>
+        }
+        createMany: {
+          args: Prisma.SharedSessionCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.SharedSessionCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SharedSessionPayload>[]
+        }
+        delete: {
+          args: Prisma.SharedSessionDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SharedSessionPayload>
+        }
+        update: {
+          args: Prisma.SharedSessionUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SharedSessionPayload>
+        }
+        deleteMany: {
+          args: Prisma.SharedSessionDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.SharedSessionUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.SharedSessionUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SharedSessionPayload>[]
+        }
+        upsert: {
+          args: Prisma.SharedSessionUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SharedSessionPayload>
+        }
+        aggregate: {
+          args: Prisma.SharedSessionAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateSharedSession>
+        }
+        groupBy: {
+          args: Prisma.SharedSessionGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.SharedSessionGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.SharedSessionCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.SharedSessionCountAggregateOutputType> | number
+        }
+      }
+    }
+    SharedSessionEntry: {
+      payload: Prisma.$SharedSessionEntryPayload<ExtArgs>
+      fields: Prisma.SharedSessionEntryFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.SharedSessionEntryFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SharedSessionEntryPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.SharedSessionEntryFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SharedSessionEntryPayload>
+        }
+        findFirst: {
+          args: Prisma.SharedSessionEntryFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SharedSessionEntryPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.SharedSessionEntryFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SharedSessionEntryPayload>
+        }
+        findMany: {
+          args: Prisma.SharedSessionEntryFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SharedSessionEntryPayload>[]
+        }
+        create: {
+          args: Prisma.SharedSessionEntryCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SharedSessionEntryPayload>
+        }
+        createMany: {
+          args: Prisma.SharedSessionEntryCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.SharedSessionEntryCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SharedSessionEntryPayload>[]
+        }
+        delete: {
+          args: Prisma.SharedSessionEntryDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SharedSessionEntryPayload>
+        }
+        update: {
+          args: Prisma.SharedSessionEntryUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SharedSessionEntryPayload>
+        }
+        deleteMany: {
+          args: Prisma.SharedSessionEntryDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.SharedSessionEntryUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.SharedSessionEntryUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SharedSessionEntryPayload>[]
+        }
+        upsert: {
+          args: Prisma.SharedSessionEntryUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$SharedSessionEntryPayload>
+        }
+        aggregate: {
+          args: Prisma.SharedSessionEntryAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateSharedSessionEntry>
+        }
+        groupBy: {
+          args: Prisma.SharedSessionEntryGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.SharedSessionEntryGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.SharedSessionEntryCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.SharedSessionEntryCountAggregateOutputType> | number
+        }
+      }
+    }
     TranscriptSession: {
       payload: Prisma.$TranscriptSessionPayload<ExtArgs>
       fields: Prisma.TranscriptSessionFieldRefs
@@ -1138,6 +1438,63 @@ export const MuxTranscriptEntryScalarFieldEnum = {
 export type MuxTranscriptEntryScalarFieldEnum = (typeof MuxTranscriptEntryScalarFieldEnum)[keyof typeof MuxTranscriptEntryScalarFieldEnum]
 
 
+export const RtmpSessionScalarFieldEnum = {
+  id: 'id',
+  ownerUserId: 'ownerUserId',
+  hostToken: 'hostToken',
+  ingestToken: 'ingestToken',
+  streamKey: 'streamKey',
+  publishUrl: 'publishUrl',
+  sourceTitle: 'sourceTitle',
+  status: 'status',
+  error: 'error',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+  endedAt: 'endedAt'
+} as const
+
+export type RtmpSessionScalarFieldEnum = (typeof RtmpSessionScalarFieldEnum)[keyof typeof RtmpSessionScalarFieldEnum]
+
+
+export const RtmpTranscriptEntryScalarFieldEnum = {
+  id: 'id',
+  sessionId: 'sessionId',
+  text: 'text',
+  lowConfidence: 'lowConfidence',
+  timestampMs: 'timestampMs',
+  createdAt: 'createdAt'
+} as const
+
+export type RtmpTranscriptEntryScalarFieldEnum = (typeof RtmpTranscriptEntryScalarFieldEnum)[keyof typeof RtmpTranscriptEntryScalarFieldEnum]
+
+
+export const SharedSessionScalarFieldEnum = {
+  id: 'id',
+  code: 'code',
+  hostToken: 'hostToken',
+  sourceType: 'sourceType',
+  sourceTitle: 'sourceTitle',
+  status: 'status',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+  endedAt: 'endedAt'
+} as const
+
+export type SharedSessionScalarFieldEnum = (typeof SharedSessionScalarFieldEnum)[keyof typeof SharedSessionScalarFieldEnum]
+
+
+export const SharedSessionEntryScalarFieldEnum = {
+  id: 'id',
+  sessionId: 'sessionId',
+  text: 'text',
+  lowConfidence: 'lowConfidence',
+  timestampMs: 'timestampMs',
+  createdAt: 'createdAt'
+} as const
+
+export type SharedSessionEntryScalarFieldEnum = (typeof SharedSessionEntryScalarFieldEnum)[keyof typeof SharedSessionEntryScalarFieldEnum]
+
+
 export const TranscriptSessionScalarFieldEnum = {
   id: 'id',
   ownerUserId: 'ownerUserId',
@@ -1276,6 +1633,34 @@ export type ListIntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel,
 
 
 /**
+ * Reference to a field of type 'SharedSessionSource'
+ */
+export type EnumSharedSessionSourceFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'SharedSessionSource'>
+    
+
+
+/**
+ * Reference to a field of type 'SharedSessionSource[]'
+ */
+export type ListEnumSharedSessionSourceFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'SharedSessionSource[]'>
+    
+
+
+/**
+ * Reference to a field of type 'SharedSessionStatus'
+ */
+export type EnumSharedSessionStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'SharedSessionStatus'>
+    
+
+
+/**
+ * Reference to a field of type 'SharedSessionStatus[]'
+ */
+export type ListEnumSharedSessionStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'SharedSessionStatus[]'>
+    
+
+
+/**
  * Reference to a field of type 'TranscriptSessionSource'
  */
 export type EnumTranscriptSessionSourceFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'TranscriptSessionSource'>
@@ -1403,6 +1788,10 @@ export type GlobalOmitConfig = {
   verification?: Prisma.VerificationOmit
   muxLiveSession?: Prisma.MuxLiveSessionOmit
   muxTranscriptEntry?: Prisma.MuxTranscriptEntryOmit
+  rtmpSession?: Prisma.RtmpSessionOmit
+  rtmpTranscriptEntry?: Prisma.RtmpTranscriptEntryOmit
+  sharedSession?: Prisma.SharedSessionOmit
+  sharedSessionEntry?: Prisma.SharedSessionEntryOmit
   transcriptSession?: Prisma.TranscriptSessionOmit
   transcriptSessionEntry?: Prisma.TranscriptSessionEntryOmit
 }

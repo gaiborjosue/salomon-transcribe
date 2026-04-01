@@ -43,7 +43,7 @@ import {
   formatShareCode,
   normalizeShareCode,
   SHARE_CODE_PREFIX,
-} from "@/lib/shared-session-manager"
+} from "@/lib/share-code-utils"
 
 type InputSource = "microphone" | "livestream"
 type TranscriptionMode = "conversation" | "sermon"

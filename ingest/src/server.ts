@@ -1,4 +1,5 @@
 import { spawn, type ChildProcessByStdio } from "node:child_process"
+import { randomUUID } from "node:crypto"
 import { createServer, type IncomingMessage } from "node:http"
 import type { Readable } from "node:stream"
 
@@ -6,6 +7,8 @@ import {
   ServerSpeechSegmenter,
   getServerSpeechSegmenterConfig,
 } from "@/lib/server-speech-segmenter"
+import type { MuxPerfTrace } from "@/lib/mux-session-types"
+import type { AudioTranslationMetrics } from "@/lib/process-audio-translation"
 
 const PORT = Number(process.env.INGEST_PORT || 4100)
 const RTMP_INPUT_BASE_URL =
@@ -34,6 +37,21 @@ type SessionKind = "mux" | "rtmp"
 
 class AppControlError extends Error {
   readonly alreadyCounted = true
+}
+
+interface QueuedChunk {
+  audio: Buffer
+  id: string
+  queuedAt: number
+  segmentDurationMs: number
+}
+
+interface ChunkRoutePayload {
+  lowConfidence?: boolean
+  metrics?: AudioTranslationMetrics
+  paused?: boolean
+  skipped?: boolean
+  text?: string
 }
 
 function encodeWav(audioBuffer: Buffer, sampleRate: number) {
@@ -79,7 +97,7 @@ async function readJsonBody(request: IncomingMessage) {
 }
 
 class IngestSession {
-  private chunkQueue: Buffer[] = []
+  private chunkQueue: QueuedChunk[] = []
   private committedTranslations: string[] = []
   private consecutiveAppFailures = 0
   private ffmpegProcess: ChildProcessByStdio<null, Readable, Readable> | null = null
@@ -100,6 +118,7 @@ class IngestSession {
       ingestToken: string
       inputUrl: string
       kind: SessionKind
+      perfPath?: string
       sessionId: string
       statusPath: string
     }
@@ -270,7 +289,15 @@ class IngestSession {
       return
     }
 
-    this.chunkQueue.push(...nextSegments)
+    const queuedAt = performance.now()
+    this.chunkQueue.push(
+      ...nextSegments.map((segment) => ({
+        audio: segment,
+        id: randomUUID(),
+        queuedAt,
+        segmentDurationMs: (segment.length / (PCM_SAMPLE_RATE * 2)) * 1000,
+      }))
+    )
     const maxQueuedChunks = Math.max(
       1,
       Math.ceil(MAX_CHUNK_QUEUE_DURATION_MS / STREAM_SEGMENTER_CONFIG.maxSegmentMs)
@@ -298,13 +325,16 @@ class IngestSession {
     }
 
     this.isProcessing = true
+    const processStartedAt = performance.now()
 
     try {
       if (!this.isAppPaused) {
         await this.postStatus("transcribing")
       }
 
-      const wavBuffer = encodeWav(nextChunk, PCM_SAMPLE_RATE)
+      const wavEncodeStartedAt = performance.now()
+      const wavBuffer = encodeWav(nextChunk.audio, PCM_SAMPLE_RATE)
+      const wavEncodeMs = performance.now() - wavEncodeStartedAt
       const formData = new FormData()
       formData.append(
         "audio",
@@ -316,6 +346,7 @@ class IngestSession {
         formData.append("context", context)
       }
 
+      const fetchStartedAt = performance.now()
       const response = await fetch(new URL(this.config.chunkPath, this.config.appBaseUrl), {
         method: "POST",
         headers: {
@@ -323,17 +354,50 @@ class IngestSession {
         },
         body: formData,
       })
+      const fetchRoundTripMs = performance.now() - fetchStartedAt
 
       if (await this.handleAppControlResponse(response, "Chunk upload")) {
         return
       }
 
       const payload = (await response.json().catch(() => null)) as
-        | { paused?: boolean; skipped?: boolean; text?: string }
+        | ChunkRoutePayload
         | null
       this.recordSuccessfulAppContact()
 
       this.isAppPaused = payload?.paused === true
+
+      if (this.config.kind === "mux" && !this.isAppPaused) {
+        void this.postPerf({
+          cfRay: payload?.metrics?.cfRay,
+          classifierDecision: payload?.metrics?.decision,
+          contextChars: payload?.metrics?.contextChars,
+          contextTruncated: payload?.metrics?.contextTruncated,
+          fetchRoundTripMs,
+          groqMs: payload?.metrics?.groqMs,
+          id: nextChunk.id,
+          lowConfidence: payload?.lowConfidence,
+          musicScore: payload?.metrics?.musicScore,
+          networkOverheadMs:
+            typeof payload?.metrics?.totalMs === "number"
+              ? Math.max(0, fetchRoundTripMs - payload.metrics.totalMs)
+              : undefined,
+          promptChars: payload?.metrics?.promptChars,
+          queueWaitMs: processStartedAt - nextChunk.queuedAt,
+          responseSkipped: payload?.skipped === true,
+          segmentDurationMs: nextChunk.segmentDurationMs,
+          serverClassifierMs: payload?.metrics?.classifierMs,
+          serverTotalMs: payload?.metrics?.totalMs,
+          source: "mux-hls",
+          speechScore: payload?.metrics?.speechScore,
+          status: payload?.skipped ? "skipped" : "completed",
+          textLength: payload?.text?.trim().length || 0,
+          topLabel: payload?.metrics?.topLabel,
+          wavEncodeMs,
+          workerTotalMs: performance.now() - nextChunk.queuedAt,
+          xGroqRegion: payload?.metrics?.xGroqRegion,
+        })
+      }
 
       if (!payload?.skipped && typeof payload?.text === "string" && payload.text.trim()) {
         this.committedTranslations = [...this.committedTranslations, payload.text.trim()].slice(
@@ -348,6 +412,18 @@ class IngestSession {
       }
     } catch (error) {
       if (!(error instanceof AppControlError)) {
+        if (this.config.kind === "mux") {
+          void this.postPerf({
+            fetchRoundTripMs: undefined,
+            id: nextChunk.id,
+            responseSkipped: false,
+            segmentDurationMs: nextChunk.segmentDurationMs,
+            source: "mux-hls",
+            status: "failed",
+            wavEncodeMs: undefined,
+            workerTotalMs: performance.now() - nextChunk.queuedAt,
+          })
+        }
         await this.recordAppFailure(
           error instanceof Error
             ? error.message
@@ -395,6 +471,35 @@ class IngestSession {
         error instanceof Error
           ? error.message
           : `Unable to post ${status} status to the app.`
+      )
+    }
+  }
+
+  private async postPerf(perf: MuxPerfTrace) {
+    if (!this.config.perfPath) {
+      return
+    }
+
+    try {
+      const response = await fetch(new URL(this.config.perfPath, this.config.appBaseUrl), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-salomon-ingest-token": this.config.ingestToken,
+        },
+        body: JSON.stringify({ perf }),
+      })
+
+      await this.handleAppControlResponse(response, "Perf event")
+    } catch (error) {
+      if (error instanceof AppControlError) {
+        return
+      }
+
+      await this.recordAppFailure(
+        error instanceof Error
+          ? error.message
+          : `${this.config.kind.toUpperCase()} perf event failed.`
       )
     }
   }
@@ -470,6 +575,7 @@ const server = createServer(async (incomingRequest, outgoingResponse) => {
       ingestToken: body.ingestToken,
       inputUrl,
       kind: "rtmp",
+      perfPath: undefined,
       sessionId: body.sessionId,
       statusPath: `/api/rtmp-sessions/${body.sessionId}/status`,
     })
@@ -501,6 +607,7 @@ const server = createServer(async (incomingRequest, outgoingResponse) => {
       ingestToken: body.ingestToken,
       inputUrl: body.playbackUrl,
       kind: "mux",
+      perfPath: `/api/mux/live-streams/${body.sessionId}/perf`,
       sessionId: body.sessionId,
       statusPath: `/api/mux/live-streams/${body.sessionId}/status`,
     })

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 
+import { getApiSession } from "@/lib/api-auth"
 import {
   sharedSessionManager,
   type SharedSourceType,
@@ -8,6 +9,11 @@ import {
 export const runtime = "nodejs"
 
 export async function POST(request: Request) {
+  const authSession = await getApiSession(request)
+  if (!authSession) {
+    return NextResponse.json({ error: "Unauthorized." }, { status: 401 })
+  }
+
   try {
     const payload = (await request.json()) as {
       sourceTitle?: string
@@ -19,7 +25,7 @@ export async function POST(request: Request) {
     const sourceTitle =
       typeof payload.sourceTitle === "string" ? payload.sourceTitle.trim() : undefined
 
-    const session = sharedSessionManager.createSession({
+    const session = await sharedSessionManager.createSession({
       sourceTitle,
       sourceType,
     })
@@ -29,13 +35,9 @@ export async function POST(request: Request) {
       snapshot: session.snapshot,
     })
   } catch (error) {
+    console.error("[shared-sessions] create failed", error)
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unable to create a shared session.",
-      },
+      { error: "Unable to create a shared session." },
       { status: 500 }
     )
   }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { getApiSession } from "@/lib/api-auth"
+import { warmServerAudioClassifier } from "@/lib/audio-content-classifier"
 import { getMuxPlaybackUrl, getPublicMuxPlaybackId } from "@/lib/mux-live-utils"
 import { startMuxIngestSession, stopMuxIngestSession } from "@/lib/mux-ingest-client"
 import { mux } from "@/lib/mux"
@@ -113,15 +114,8 @@ export async function GET(
 
   try {
     const { liveStreamId } = await params
-    const { searchParams } = new URL(request.url)
-    const hostToken = searchParams.get("hostToken")?.trim() || ""
-
-    if (!hostToken) {
-      return NextResponse.json({ error: "Missing host token." }, { status: 401 })
-    }
-
     const snapshot = await muxSessionManager.getOwnerSession(liveStreamId, session.user.id)
-    if (!snapshot || snapshot.hostToken !== hostToken) {
+    if (!snapshot) {
       return NextResponse.json({ error: "Mux live stream not found." }, { status: 404 })
     }
 
@@ -148,7 +142,7 @@ export async function GET(
 
       const endedSnapshot = await muxSessionManager.getHostSession(
         liveStreamId,
-        hostToken
+        snapshot.hostToken
       )
       if (!endedSnapshot) {
         return NextResponse.json({ error: "Mux live stream not found." }, { status: 404 })
@@ -162,6 +156,7 @@ export async function GET(
       const workerPayload = await muxSessionManager.prepareWorkerStart(liveStreamId)
       if (workerPayload) {
         try {
+          await warmServerAudioClassifier()
           await startMuxIngestSession({
             appBaseUrl: getAppBaseUrl(),
             ingestToken: workerPayload.ingestToken,
@@ -188,7 +183,10 @@ export async function GET(
         }
       }
     }
-    const refreshed = await muxSessionManager.getHostSession(liveStreamId, hostToken)
+    const refreshed = await muxSessionManager.getHostSession(
+      liveStreamId,
+      snapshot.hostToken
+    )
     const playbackId = getPublicMuxPlaybackId(liveStream)
 
     return NextResponse.json({
@@ -202,13 +200,9 @@ export async function GET(
       },
     })
   } catch (error) {
+    console.error("[mux-live-streams] get failed", error)
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unable to load the Mux live stream.",
-      },
+      { error: "Unable to load the Mux live stream." },
       { status: 500 }
     )
   }
@@ -225,16 +219,8 @@ export async function DELETE(
 
   try {
     const { liveStreamId } = await params
-    const payload = (await request.json().catch(() => null)) as
-      | { hostToken?: string }
-      | null
-
-    if (typeof payload?.hostToken !== "string" || !payload.hostToken.trim()) {
-      return NextResponse.json({ error: "Missing host token." }, { status: 401 })
-    }
-
     const existingSession = await muxSessionManager.getOwnerSession(liveStreamId, session.user.id)
-    if (!existingSession || existingSession.hostToken !== payload.hostToken.trim()) {
+    if (!existingSession) {
       return NextResponse.json({ error: "Mux session not found." }, { status: 404 })
     }
 
@@ -249,18 +235,14 @@ export async function DELETE(
       }
     }
     await muxSessionManager.endByHost({
-      hostToken: payload.hostToken,
+      hostToken: existingSession.hostToken,
       sessionId: liveStreamId,
     })
     return NextResponse.json({ ok: true })
   } catch (error) {
+    console.error("[mux-live-streams] delete failed", error)
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unable to delete the Mux live stream.",
-      },
+      { error: "Unable to delete the Mux live stream." },
       { status: 500 }
     )
   }

@@ -1,12 +1,6 @@
 import type { TranscriptEntry } from "@/components/transcriber-ui"
 
-export type RtmpSessionStatus =
-  | "connecting"
-  | "connected"
-  | "paused"
-  | "transcribing"
-  | "disconnected"
-  | "error"
+export type RtmpSessionStatus = "connecting" | "connected" | "paused" | "transcribing" | "disconnected" | "error"
 
 export interface RtmpSessionSnapshot {
   createdAt: number
@@ -17,4 +11,14 @@ export interface RtmpSessionSnapshot {
   sourceTitle?: string
   status: RtmpSessionStatus
   streamKey: string
+  updatedAt: number
+}
+
+export interface RtmpSessionSummary {
+  id: string
+  publishUrl: string
+  sourceTitle?: string
+  status: RtmpSessionStatus
+  streamKey: string
+  updatedAt: number
 }

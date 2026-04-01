@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { sharedSessionManager } from "@/lib/shared-session-manager"
 import type { TranscriptEntry } from "@/components/transcriber-ui"
+import { getApiSession } from "@/lib/api-auth"
 import { muxSessionManager } from "@/lib/mux-session-manager"
 
 export const runtime = "nodejs"
@@ -12,7 +13,7 @@ export async function GET(
 ) {
   const { sessionId } = await params
   const snapshot =
-    sharedSessionManager.getSnapshotById(sessionId) ??
+    (await sharedSessionManager.ensureSnapshotById(sessionId)) ??
     (await muxSessionManager.ensureSharedSessionById(sessionId))
 
   if (!snapshot) {
@@ -29,6 +30,11 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
+  const authSession = await getApiSession(request)
+  if (!authSession) {
+    return NextResponse.json({ error: "Unauthorized." }, { status: 401 })
+  }
+
   const { sessionId } = await params
 
   try {
@@ -58,7 +64,7 @@ export async function POST(
         )
       }
 
-      const ok = sharedSessionManager.appendEntry({
+      const ok = await sharedSessionManager.appendEntry({
         entry: payload.entry,
         hostToken,
         sessionId,
@@ -75,7 +81,7 @@ export async function POST(
     }
 
     if (payload.type === "meta") {
-      const ok = sharedSessionManager.updateMetadata({
+      const ok = await sharedSessionManager.updateMetadata({
         hostToken,
         sessionId,
         sourceTitle:
@@ -102,7 +108,7 @@ export async function POST(
         )
       }
 
-      const ok = sharedSessionManager.syncSession({
+      const ok = await sharedSessionManager.syncSession({
         entries: payload.entries,
         hostToken,
         sessionId,
@@ -123,7 +129,7 @@ export async function POST(
     }
 
     if (payload.type === "end") {
-      const ok = sharedSessionManager.endSession({
+      const ok = await sharedSessionManager.endSession({
         hostToken,
         sessionId,
       })
@@ -140,13 +146,9 @@ export async function POST(
 
     return NextResponse.json({ error: "Unsupported action." }, { status: 400 })
   } catch (error) {
+    console.error("[shared-sessions] update failed", error)
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unable to update the shared session.",
-      },
+      { error: "Unable to update the shared session." },
       { status: 500 }
     )
   }

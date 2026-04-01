@@ -19,6 +19,7 @@ model User {
   sessions      Session[]
   accounts      Account[]
   muxLiveSessions MuxLiveSession[]
+  rtmpSessions  RtmpSession[]
   transcriptSessions TranscriptSession[]
 
   @@unique([email])
@@ -46,6 +47,16 @@ enum TranscriptSessionSource {
   livestream
   mux
   rtmp
+}
+
+enum SharedSessionSource {
+  microphone
+  livestream
+}
+
+enum SharedSessionStatus {
+  active
+  ended
 }
 
 model Session {
@@ -136,6 +147,69 @@ model MuxTranscriptEntry {
 
   @@index([sessionId, createdAt(sort: Desc)])
   @@map("mux_transcript_entry")
+}
+
+model RtmpSession {
+  id            String              @id
+  ownerUserId   String
+  owner         User                @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  hostToken     String              @unique
+  ingestToken   String              @unique
+  streamKey     String              @unique
+  publishUrl    String
+  sourceTitle   String?
+  status        MuxProcessingStatus @default(connecting)
+  error         String?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  endedAt       DateTime?
+  entries       RtmpTranscriptEntry[]
+
+  @@index([ownerUserId, endedAt, updatedAt(sort: Desc)])
+  @@index([endedAt, updatedAt(sort: Desc)])
+  @@map("rtmp_session")
+}
+
+model RtmpTranscriptEntry {
+  id            String      @id @default(cuid())
+  sessionId     String
+  session       RtmpSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  text          String
+  lowConfidence Boolean?
+  timestampMs   Int
+  createdAt     DateTime    @default(now())
+
+  @@index([sessionId, createdAt(sort: Desc)])
+  @@map("rtmp_transcript_entry")
+}
+
+model SharedSession {
+  id          String              @id
+  code        String              @unique
+  hostToken   String              @unique
+  sourceType  SharedSessionSource
+  sourceTitle String?
+  status      SharedSessionStatus @default(active)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  endedAt     DateTime?
+  entries     SharedSessionEntry[]
+
+  @@index([endedAt, updatedAt(sort: Desc)])
+  @@map("shared_session")
+}
+
+model SharedSessionEntry {
+  id            String        @id @default(cuid())
+  sessionId     String
+  session       SharedSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  text          String
+  lowConfidence Boolean?
+  timestampMs   Int
+  createdAt     DateTime      @default(now())
+
+  @@index([sessionId, createdAt(sort: Desc)])
+  @@map("shared_session_entry")
 }
 
 model TranscriptSession {

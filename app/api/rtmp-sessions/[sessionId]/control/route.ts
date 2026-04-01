@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 
+import { getApiSession } from "@/lib/api-auth"
 import { stopRtmpIngestSession } from "@/lib/rtmp-ingest-client"
 import { rtmpSessionManager } from "@/lib/rtmp-session-manager"
 
@@ -10,31 +11,33 @@ export async function POST(
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
   const { sessionId } = await params
+  const session = await getApiSession(request)
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized." }, { status: 401 })
+  }
 
   try {
     const payload = (await request.json().catch(() => null)) as
       | {
           action?: "pause" | "resume" | "stop"
-          hostToken?: string
         }
       | null
 
-    if (
-      !payload?.action ||
-      typeof payload.hostToken !== "string" ||
-      !["pause", "resume", "stop"].includes(payload.action)
-    ) {
+    if (!payload?.action || !["pause", "resume", "stop"].includes(payload.action)) {
       return NextResponse.json({ error: "Unsupported action." }, { status: 400 })
     }
 
-    const snapshot = rtmpSessionManager.getHostSession(sessionId, payload.hostToken)
-    if (!snapshot) {
+    const ownerSession = await rtmpSessionManager.getOwnerSession(
+      sessionId,
+      session.user.id
+    )
+    if (!ownerSession) {
       return NextResponse.json({ error: "RTMP session not found." }, { status: 404 })
     }
 
     if (payload.action === "pause") {
-      const updated = rtmpSessionManager.setHostStatus({
-        hostToken: payload.hostToken,
+      const updated = await rtmpSessionManager.setHostStatus({
+        hostToken: ownerSession.hostToken,
         sessionId,
         status: "paused",
       })
@@ -47,8 +50,8 @@ export async function POST(
     }
 
     if (payload.action === "resume") {
-      const updated = rtmpSessionManager.setHostStatus({
-        hostToken: payload.hostToken,
+      const updated = await rtmpSessionManager.setHostStatus({
+        hostToken: ownerSession.hostToken,
         sessionId,
         status: "connected",
       })
@@ -66,20 +69,16 @@ export async function POST(
       // If the ingest service is already down, still end the local session state.
     }
 
-    rtmpSessionManager.endByHost({
-      hostToken: payload.hostToken,
+    await rtmpSessionManager.endByHost({
+      hostToken: ownerSession.hostToken,
       sessionId,
     })
 
     return NextResponse.json({ ok: true })
   } catch (error) {
+    console.error("[rtmp-sessions] control failed", error)
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unable to update the RTMP session.",
-      },
+      { error: "Unable to update the RTMP session." },
       { status: 500 }
     )
   }
