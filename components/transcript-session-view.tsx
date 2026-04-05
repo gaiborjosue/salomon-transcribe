@@ -115,6 +115,7 @@ export function TranscriptSessionView({
               entries={session.entries}
               error=""
               isConnected
+              textAnimation="none"
             />
           </div>
         </div>

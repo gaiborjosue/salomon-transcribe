@@ -160,6 +160,7 @@ export function TranscriptHistorySidebar({
       archived: sessions.archived.filter(predicate),
     }
   }, [filter, sessions])
+  const hasArchivedSessions = filteredSessions.archived.length > 0
 
   useEffect(() => {
     if (
@@ -326,9 +327,15 @@ export function TranscriptHistorySidebar({
                   <Button
                     type="button"
                     variant="ghost"
-                    disabled={filteredSessions.archived.length === 0}
+                    aria-disabled={!hasArchivedSessions}
                     className="h-10 w-full justify-between rounded-xl border border-sidebar-border/70 bg-sidebar-accent/25 px-3 text-sidebar-foreground/72 hover:bg-sidebar-accent hover:text-sidebar-foreground disabled:opacity-45"
                     title="Archived sessions"
+                    onClick={(event) => {
+                      if (!hasArchivedSessions) {
+                        event.preventDefault()
+                        event.stopPropagation()
+                      }
+                    }}
                   >
                     <span className="flex items-center gap-2">
                       <Archive data-icon="inline-start" />
@@ -339,7 +346,7 @@ export function TranscriptHistorySidebar({
                         {filteredSessions.archived.length}
                       </span>
                       <ChevronDown
-                        className={`transition-transform duration-200 ${archivedOpen ? "rotate-180" : ""}`}
+                        className={`transition-transform duration-200 ${archivedOpen ? "rotate-180" : ""} ${!hasArchivedSessions ? "opacity-40" : ""}`}
                       />
                     </span>
                   </Button>

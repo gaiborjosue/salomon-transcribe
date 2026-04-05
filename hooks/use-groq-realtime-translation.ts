@@ -30,6 +30,7 @@ interface GroqConfig {
 
 interface ConnectOptions {
   classifierMode?: "device" | "server"
+  disableClassification?: boolean
   languageCode?: string
   microphone?: {
     echoCancellation?: boolean
@@ -50,17 +51,22 @@ interface GroqHook {
 
 interface GroqRouteResponse extends GroqTranslationPayload {
   metrics?: {
-    cfRay?: string
     classifierMs?: number
     contextChars?: number
     contextTruncated?: boolean
     decision?: "mixed" | "music" | "speech"
     groqMs?: number
+    modelMs?: number
+    modelName?: string
     musicScore?: number
     promptChars?: number
+    provider?: "groq" | "qwen"
+    requestId?: string
+    responseId?: string
     speechScore?: number
     topLabel?: string
     totalMs?: number
+    cfRay?: string
     xGroqRegion?: string
   }
   skipped?: boolean
@@ -324,7 +330,10 @@ function logMicPerformance(
     classifierDecision?: "mixed" | "music" | "speech"
     clientTotalMs: number
     fetchRoundTripMs?: number
+    provider?: "groq" | "qwen"
     groqMs?: number
+    modelMs?: number
+    modelName?: string
     mode: "device" | "server"
     musicScore?: number
     promptChars?: number
@@ -337,6 +346,8 @@ function logMicPerformance(
     contextChars?: number
     contextTruncated?: boolean
     cfRay?: string
+    requestId?: string
+    responseId?: string
     xGroqRegion?: string
   }
 ) {
@@ -370,9 +381,9 @@ function logMicPerformance(
       typeof details.fetchRoundTripMs === "number"
         ? Number(details.fetchRoundTripMs.toFixed(1))
         : "n/a",
-    groqMs:
-      typeof details.groqMs === "number"
-        ? Number(details.groqMs.toFixed(1))
+    modelMs:
+      typeof (details.modelMs ?? details.groqMs) === "number"
+        ? Number((details.modelMs ?? details.groqMs)!.toFixed(1))
         : "n/a",
     mode: details.mode,
     networkOverheadMs:
@@ -405,7 +416,11 @@ function logMicPerformance(
     forcedFlush: perf.forcedFlush,
     hadCarryover: perf.hadCarryover,
     mergedPending: perf.mergedPending,
+    modelName: details.modelName,
     promptChars: details.promptChars,
+    provider: details.provider,
+    requestId: details.requestId,
+    responseId: details.responseId,
     responseSkipped: details.responseSkipped,
     skipReason: perf.skipReason,
     speechScore:
@@ -465,6 +480,7 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
   const [status, setStatus] = useState<GroqStatus>("idle")
   const vadRef = useRef<MicVAD | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
+  const mediaStreamRef = useRef<MediaStream | null>(null)
   const optionsRef = useRef<ConnectOptions | null>(null)
   const activeRef = useRef(false)
   const uploadInFlightRef = useRef(false)
@@ -517,7 +533,8 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
     abortControllerRef.current = null
     pendingInitialStreamRef.current?.getTracks().forEach((track) => track.stop())
     pendingInitialStreamRef.current = null
-
+    mediaStreamRef.current?.getTracks().forEach((track) => track.stop())
+    mediaStreamRef.current = null
     const vad = vadRef.current
     vadRef.current = null
     const audioContext = audioContextRef.current
@@ -573,8 +590,15 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
         formData.append("sourceLanguage", optionsRef.current.languageCode)
       }
 
+      if (optionsRef.current?.disableClassification) {
+        formData.append("skipServerClassification", "true")
+      }
+
       let deviceClassification: DeviceClassification | null = null
-      if (activeClassifierModeRef.current === "device") {
+      if (
+        !optionsRef.current?.disableClassification &&
+        activeClassifierModeRef.current === "device"
+      ) {
         try {
           deviceClassification = await classifyOnDevice(nextSegment.audio)
           nextSegment.perf.deviceClassifierMs = deviceClassification.classifierMs
@@ -636,10 +660,15 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
           contextTruncated: payload.metrics?.contextTruncated,
           fetchRoundTripMs,
           groqMs: payload.metrics?.groqMs,
+          modelMs: payload.metrics?.modelMs,
+          modelName: payload.metrics?.modelName,
           mode: activeClassifierModeRef.current,
           musicScore: payload.metrics?.musicScore,
+          provider: payload.metrics?.provider,
           promptChars: payload.metrics?.promptChars,
+          requestId: payload.metrics?.requestId,
           responseSkipped: true,
+          responseId: payload.metrics?.responseId,
           serverClassifierMs: payload.metrics?.classifierMs,
           serverTotalMs: payload.metrics?.totalMs,
           speechScore: payload.metrics?.speechScore,
@@ -685,10 +714,15 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
         contextTruncated: payload.metrics?.contextTruncated,
         fetchRoundTripMs,
         groqMs: payload.metrics?.groqMs,
+        modelMs: payload.metrics?.modelMs,
+        modelName: payload.metrics?.modelName,
         mode: activeClassifierModeRef.current,
         musicScore: payload.metrics?.musicScore,
+        provider: payload.metrics?.provider,
         promptChars: payload.metrics?.promptChars,
+        requestId: payload.metrics?.requestId,
         responseSkipped: false,
+        responseId: payload.metrics?.responseId,
         serverClassifierMs: payload.metrics?.classifierMs,
         serverTotalMs: payload.metrics?.totalMs,
         speechScore: payload.metrics?.speechScore,
@@ -878,7 +912,7 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
 
   const pause = useCallback(async () => {
     const vad = vadRef.current
-    if (!vad || !activeRef.current || pausedRef.current) {
+    if (!activeRef.current || pausedRef.current) {
       return
     }
 
@@ -889,7 +923,9 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
     forcedFlushRequestedRef.current = false
 
     try {
-      await vad.pause()
+      if (vad) {
+        await vad.pause()
+      }
       setStatus("paused")
     } catch (error) {
       pausedRef.current = false
@@ -903,7 +939,7 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
 
   const resume = useCallback(async () => {
     const vad = vadRef.current
-    if (!vad || !activeRef.current || !pausedRef.current) {
+    if (!activeRef.current || !pausedRef.current) {
       return
     }
 
@@ -913,7 +949,9 @@ export function useGroqRealtimeTranslation(config: GroqConfig): GroqHook {
         await audioContext.resume()
       }
 
-      await vad.start()
+      if (vad) {
+        await vad.start()
+      }
       pausedRef.current = false
       setStatus("connected")
       if (segmentQueueRef.current.length > 0) {

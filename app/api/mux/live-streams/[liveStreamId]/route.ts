@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { getApiSession } from "@/lib/api-auth"
 import { warmServerAudioClassifier } from "@/lib/audio-content-classifier"
+import { bestEffortDeleteMuxAssetsForLiveStream } from "@/lib/mux-live-assets"
 import { getMuxPlaybackUrl, getPublicMuxPlaybackId } from "@/lib/mux-live-utils"
 import { startMuxIngestSession, stopMuxIngestSession } from "@/lib/mux-ingest-client"
 import { mux } from "@/lib/mux"
@@ -174,6 +175,7 @@ export async function GET(
       }
     }
     if (liveStream.status === "idle" || liveStream.status === "disabled") {
+      await bestEffortDeleteMuxAssetsForLiveStream(liveStream)
       const stopPayload = await muxSessionManager.prepareWorkerStop(liveStreamId)
       if (stopPayload) {
         try {
@@ -225,6 +227,12 @@ export async function DELETE(
     }
 
     await bestEffortDisableLiveStream(liveStreamId)
+    try {
+      const liveStream = await mux.video.liveStreams.retrieve(liveStreamId)
+      await bestEffortDeleteMuxAssetsForLiveStream(liveStream)
+    } catch {
+      // The live stream may already be unavailable; webhook/cleanup paths remain best-effort.
+    }
     await bestEffortDeleteLiveStream(liveStreamId)
     const stopPayload = await muxSessionManager.prepareWorkerStop(liveStreamId)
     if (stopPayload) {

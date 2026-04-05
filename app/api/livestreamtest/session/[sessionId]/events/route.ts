@@ -66,6 +66,11 @@ export async function GET(
           return
         }
 
+        if (event.type === "partial") {
+          send("partial", { text: event.text })
+          return
+        }
+
         if (event.type === "segment") {
           send("segment", event.entry)
           return

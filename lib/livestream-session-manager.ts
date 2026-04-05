@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto"
 import { spawn, type ChildProcessByStdio } from "node:child_process"
 import type { Readable } from "node:stream"
+import WebSocket from "ws"
 
 import type {
   LivestreamMode,
@@ -8,55 +9,101 @@ import type {
   LivestreamSessionStatus,
   LivestreamTranscriptEntry,
 } from "@/lib/livestream-types"
-import { warmServerAudioClassifier } from "@/lib/audio-content-classifier"
-import { processAudioTranslation } from "@/lib/process-audio-translation"
-import {
-  ServerSpeechSegmenter,
-  getServerSpeechSegmenterConfig,
-} from "@/lib/server-speech-segmenter"
 import {
   dedupeBoundaryText,
   normalizeWhitespace,
 } from "@/lib/transcript-text-utils"
-import { assessGroqTranslation } from "@/lib/groq-translation"
 
 type LivestreamEvent =
+  | { type: "partial"; text: string }
   | { type: "segment"; entry: LivestreamTranscriptEntry }
   | { type: "snapshot"; snapshot: LivestreamSessionSnapshot }
-  | { type: "status"; error?: string; sourceTitle?: string; status: LivestreamSessionStatus }
+  | {
+      type: "status"
+      error?: string
+      sourceTitle?: string
+      status: LivestreamSessionStatus
+    }
 
-const PCM_SAMPLE_RATE = 16000
 const SESSION_IDLE_TTL_MS = 60_000
-const MAX_CONTEXT_SEGMENTS = 2
 const MAX_HISTORY_SEGMENTS = 500
-const MAX_CHUNK_QUEUE_DURATION_MS = 60_000
+const QWEN_REALTIME_URL =
+  process.env.DASHSCOPE_REALTIME_URL?.trim() ||
+  (process.env.DASHSCOPE_REGION === "cn"
+    ? "wss://dashscope.aliyuncs.com/api-ws/v1/realtime"
+    : "wss://dashscope-intl.aliyuncs.com/api-ws/v1/realtime")
+const QWEN_REALTIME_MODEL =
+  process.env.DASHSCOPE_TRANSLATION_MODEL?.trim() ||
+  "qwen3-livetranslate-flash-realtime"
+const QWEN_LIVESTREAM_SESSION_ROTATE_AFTER_MS = Number(
+  process.env.QWEN_LIVESTREAM_SESSION_ROTATE_AFTER_MS ??
+    process.env.QWEN_MIC_SESSION_ROTATE_AFTER_MS ??
+    String(110 * 60 * 1000)
+)
+const QWEN_LIVESTREAM_VAD_THRESHOLD = Number(
+  process.env.QWEN_LIVESTREAM_VAD_THRESHOLD ??
+    process.env.QWEN_MIC_VAD_THRESHOLD ??
+    "0.1"
+)
+const QWEN_LIVESTREAM_VAD_SILENCE_MS = Number(
+  process.env.QWEN_LIVESTREAM_VAD_SILENCE_MS ??
+    process.env.QWEN_MIC_VAD_SILENCE_MS ??
+    "1100"
+)
+const QWEN_LIVESTREAM_VAD_PREFIX_PADDING_MS = Number(
+  process.env.QWEN_LIVESTREAM_VAD_PREFIX_PADDING_MS ??
+    process.env.QWEN_MIC_VAD_PREFIX_PADDING_MS ??
+    "400"
+)
+const QWEN_UPSTREAM_GRACEFUL_CLOSE_TIMEOUT_MS = Number(
+  process.env.QWEN_UPSTREAM_GRACEFUL_CLOSE_TIMEOUT_MS ?? "2500"
+)
+
+function nextQwenEventId() {
+  return `event_${randomUUID().replace(/-/gu, "")}`
+}
 
 function isInactiveStatus(status: LivestreamSessionStatus) {
   return status === "paused" || status === "disconnected" || status === "error"
 }
 
-function encodeWav(audioBuffer: Buffer, sampleRate: number): Buffer {
-  const bytesPerSample = 2
-  const blockAlign = bytesPerSample
-  const byteRate = sampleRate * blockAlign
-  const wavBuffer = Buffer.alloc(44 + audioBuffer.length)
+function extractQwenResponseDoneText(event: Record<string, unknown>) {
+  const response =
+    event.response && typeof event.response === "object"
+      ? (event.response as Record<string, unknown>)
+      : null
+  const output = Array.isArray(response?.output) ? response.output : []
 
-  wavBuffer.write("RIFF", 0)
-  wavBuffer.writeUInt32LE(36 + audioBuffer.length, 4)
-  wavBuffer.write("WAVE", 8)
-  wavBuffer.write("fmt ", 12)
-  wavBuffer.writeUInt32LE(16, 16)
-  wavBuffer.writeUInt16LE(1, 20)
-  wavBuffer.writeUInt16LE(1, 22)
-  wavBuffer.writeUInt32LE(sampleRate, 24)
-  wavBuffer.writeUInt32LE(byteRate, 28)
-  wavBuffer.writeUInt16LE(blockAlign, 32)
-  wavBuffer.writeUInt16LE(16, 34)
-  wavBuffer.write("data", 36)
-  wavBuffer.writeUInt32LE(audioBuffer.length, 40)
-  audioBuffer.copy(wavBuffer, 44)
+  for (const outputItem of output) {
+    if (!outputItem || typeof outputItem !== "object") {
+      continue
+    }
 
-  return wavBuffer
+    const content = Array.isArray((outputItem as Record<string, unknown>).content)
+      ? ((outputItem as Record<string, unknown>).content as unknown[])
+      : []
+
+    for (const contentItem of content) {
+      if (!contentItem || typeof contentItem !== "object") {
+        continue
+      }
+
+      const contentRecord = contentItem as Record<string, unknown>
+      const textValue =
+        typeof contentRecord.text === "string"
+          ? contentRecord.text
+          : typeof contentRecord.transcript === "string"
+            ? contentRecord.transcript
+            : ""
+
+      const trimmed = textValue.trim()
+      if (trimmed) {
+        return trimmed
+      }
+    }
+  }
+
+  return ""
 }
 
 async function runCommand(command: string, args: string[]): Promise<string> {
@@ -114,17 +161,19 @@ class LivestreamSession {
   private readonly mode: LivestreamMode
   private readonly streamUrl: string
   private readonly id: string
-  private readonly speechSegmenter: ServerSpeechSegmenter
 
-  private chunkQueue: Buffer[] = []
-  private committedTranslations: string[] = []
+  private readonly drainingSockets = new WeakSet<WebSocket>()
+  private connectingUpstream = false
   private error?: string
   private ffmpegProcess: ChildProcessByStdio<null, Readable, Readable> | null =
     null
+  private finalDeliveredForResponse = false
   private history: LivestreamTranscriptEntry[] = []
   private idleCleanupTimer: NodeJS.Timeout | null = null
   private isStoppingProcess = false
-  private isTranslating = false
+  private partialText = ""
+  private qwenSocket: WebSocket | null = null
+  private rotateTimer: NodeJS.Timeout | null = null
   private sourceTitle?: string
   private startedAtMs: number | null = null
   private status: LivestreamSessionStatus = "idle"
@@ -144,10 +193,6 @@ class LivestreamSession {
     this.id = id
     this.mode = mode
     this.onTerminalStatus = onTerminalStatus
-    this.speechSegmenter = new ServerSpeechSegmenter(
-      id,
-      getServerSpeechSegmenterConfig(mode)
-    )
     this.streamUrl = streamUrl
   }
 
@@ -165,6 +210,9 @@ class LivestreamSession {
   subscribe(listener: (event: LivestreamEvent) => void) {
     this.listeners.add(listener)
     listener({ type: "snapshot", snapshot: this.getSnapshot() })
+    if (this.partialText.trim()) {
+      listener({ type: "partial", text: this.partialText.trim() })
+    }
     if (this.idleCleanupTimer) {
       clearTimeout(this.idleCleanupTimer)
       this.idleCleanupTimer = null
@@ -186,6 +234,10 @@ class LivestreamSession {
     }
   }
 
+  private emitPartial(text: string) {
+    this.emit({ type: "partial", text })
+  }
+
   private setStatus(status: LivestreamSessionStatus, error?: string) {
     this.status = status
     this.error = error
@@ -205,6 +257,342 @@ class LivestreamSession {
     }
   }
 
+  private clearRotateTimer() {
+    if (this.rotateTimer) {
+      clearTimeout(this.rotateTimer)
+      this.rotateTimer = null
+    }
+  }
+
+  private scheduleRotateTimer() {
+    this.clearRotateTimer()
+    this.rotateTimer = setTimeout(() => {
+      void this.rotateUpstream("session-limit")
+    }, QWEN_LIVESTREAM_SESSION_ROTATE_AFTER_MS)
+  }
+
+  private async closeUpstreamSocketGracefully(socket: WebSocket | null) {
+    if (!socket || this.drainingSockets.has(socket)) {
+      return
+    }
+
+    this.drainingSockets.add(socket)
+
+    if (socket.readyState !== WebSocket.OPEN) {
+      try {
+        socket.close()
+      } catch {
+        // noop
+      }
+      return
+    }
+
+    await new Promise<void>((resolve) => {
+      let finished = false
+      let closeFallback: NodeJS.Timeout | null = null
+      let closeTimeout: NodeJS.Timeout | null = null
+
+      const cleanup = () => {
+        socket.off("message", handleMessage)
+        socket.off("close", handleClose)
+        socket.off("error", handleClose)
+        if (closeFallback) {
+          clearTimeout(closeFallback)
+          closeFallback = null
+        }
+        if (closeTimeout) {
+          clearTimeout(closeTimeout)
+          closeTimeout = null
+        }
+      }
+
+      const done = () => {
+        if (finished) {
+          return
+        }
+        finished = true
+        cleanup()
+        resolve()
+      }
+
+      const handleClose = () => {
+        done()
+      }
+
+      const handleMessage = (rawMessage: WebSocket.RawData) => {
+        try {
+          const event = JSON.parse(
+            typeof rawMessage === "string"
+              ? rawMessage
+              : rawMessage.toString("utf8")
+          ) as Record<string, unknown>
+
+          if (event.type === "session.finished") {
+            try {
+              socket.close()
+            } catch {
+              // noop
+            }
+            closeFallback = setTimeout(() => {
+              done()
+            }, 250)
+          }
+        } catch {
+          // Ignore malformed shutdown events.
+        }
+      }
+
+      socket.on("message", handleMessage)
+      socket.on("close", handleClose)
+      socket.on("error", handleClose)
+
+      socket.send(
+        JSON.stringify({
+          event_id: nextQwenEventId(),
+          type: "session.finish",
+        })
+      )
+
+      closeTimeout = setTimeout(() => {
+        try {
+          socket.close()
+        } catch {
+          // noop
+        }
+        done()
+      }, QWEN_UPSTREAM_GRACEFUL_CLOSE_TIMEOUT_MS)
+    })
+  }
+
+  private async connectUpstream({
+    isRotation = false,
+  }: {
+    isRotation?: boolean
+  } = {}) {
+    const apiKey = process.env.DASHSCOPE_API_KEY?.trim()
+    if (!apiKey) {
+      throw new Error("DASHSCOPE_API_KEY is not configured.")
+    }
+
+    if (this.connectingUpstream || isInactiveStatus(this.status)) {
+      return
+    }
+
+    this.connectingUpstream = true
+
+    const qwenSocket = new WebSocket(
+      `${QWEN_REALTIME_URL}?model=${encodeURIComponent(QWEN_REALTIME_MODEL)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+        },
+      }
+    )
+
+    await new Promise<void>((resolve, reject) => {
+      let settled = false
+
+      const fail = (error: Error) => {
+        if (settled) {
+          return
+        }
+        settled = true
+        this.connectingUpstream = false
+        reject(error)
+      }
+
+      qwenSocket.on("open", () => {
+        qwenSocket.send(
+          JSON.stringify({
+            event_id: nextQwenEventId(),
+            session: {
+              input_audio_format: "pcm16",
+              input_audio_transcription: {
+                language: "es",
+              },
+              modalities: ["text"],
+              turn_detection: {
+                prefix_padding_ms: QWEN_LIVESTREAM_VAD_PREFIX_PADDING_MS,
+                silence_duration_ms: QWEN_LIVESTREAM_VAD_SILENCE_MS,
+                threshold: QWEN_LIVESTREAM_VAD_THRESHOLD,
+                type: "server_vad",
+              },
+              translation: {
+                language: "en",
+              },
+            },
+            type: "session.update",
+          })
+        )
+      })
+
+      qwenSocket.on("message", (rawMessage) => {
+        try {
+          const event = JSON.parse(
+            typeof rawMessage === "string"
+              ? rawMessage
+              : rawMessage.toString("utf8")
+          ) as Record<string, unknown>
+          const eventType = typeof event.type === "string" ? event.type : ""
+          const isCurrentSocket = this.qwenSocket === qwenSocket
+
+          if (settled && !isCurrentSocket) {
+            return
+          }
+
+          if (eventType === "error") {
+            const message =
+              event.error &&
+              typeof event.error === "object" &&
+              "message" in event.error
+                ? String(event.error.message)
+                : "Qwen realtime returned an error."
+            if (!settled) {
+              fail(new Error(message))
+              return
+            }
+
+            this.partialText = ""
+            this.emitPartial("")
+            this.setStatus("error", message)
+            this.stopIngestProcess()
+            return
+          }
+
+          if (eventType === "session.updated") {
+            this.qwenSocket = qwenSocket
+            this.connectingUpstream = false
+            this.scheduleRotateTimer()
+            if (!settled) {
+              settled = true
+              resolve()
+            }
+            return
+          }
+
+          if (eventType === "input_audio_buffer.speech_started") {
+            if (!isInactiveStatus(this.status) && this.status !== "connected") {
+              this.setStatus("connected")
+            }
+            return
+          }
+
+          if (eventType === "input_audio_buffer.speech_stopped") {
+            if (!isInactiveStatus(this.status)) {
+              this.setStatus("transcribing")
+            }
+            return
+          }
+
+          if (eventType === "response.created") {
+            this.partialText = ""
+            this.finalDeliveredForResponse = false
+            return
+          }
+
+          if (eventType === "response.text.delta" && typeof event.delta === "string") {
+            this.partialText += event.delta
+            this.emitPartial(this.partialText)
+            return
+          }
+
+          if (eventType === "response.text.done" && typeof event.text === "string") {
+            const text = event.text.trim() || this.partialText.trim()
+            if (text && !this.finalDeliveredForResponse) {
+              this.finalDeliveredForResponse = true
+              this.appendSegment(text)
+            }
+            this.partialText = ""
+            this.emitPartial("")
+            if (!isInactiveStatus(this.status)) {
+              this.setStatus("connected")
+            }
+            return
+          }
+
+          if (eventType === "response.done") {
+            const text = extractQwenResponseDoneText(event) || this.partialText.trim()
+            if (text && !this.finalDeliveredForResponse) {
+              this.finalDeliveredForResponse = true
+              this.appendSegment(text)
+            }
+            this.partialText = ""
+            this.emitPartial("")
+            if (!isInactiveStatus(this.status)) {
+              this.setStatus("connected")
+            }
+            return
+          }
+        } catch (error) {
+          fail(
+            error instanceof Error
+              ? error
+              : new Error("Unable to parse Qwen realtime response.")
+          )
+        }
+      })
+
+      qwenSocket.on("error", () => {
+        fail(new Error("Qwen realtime connection failed."))
+      })
+
+      qwenSocket.on("close", () => {
+        const isCurrentSocket = this.qwenSocket === qwenSocket
+        const isDraining = this.drainingSockets.has(qwenSocket)
+
+        if (isCurrentSocket) {
+          this.qwenSocket = null
+          this.clearRotateTimer()
+        }
+
+        if (!settled) {
+          fail(new Error("Qwen realtime connection closed before setup completed."))
+          return
+        }
+
+        if (!isCurrentSocket) {
+          return
+        }
+
+        this.connectingUpstream = false
+
+        if (!isInactiveStatus(this.status) && !isDraining) {
+          void this.rotateUpstream("unexpected-close")
+        }
+      })
+    })
+
+    if (isRotation) {
+      console.info(`[Livestream][Qwen] Rotated upstream session for ${this.id}.`)
+    }
+  }
+
+  private async rotateUpstream(reason: "session-limit" | "unexpected-close") {
+    if (this.connectingUpstream || isInactiveStatus(this.status)) {
+      return
+    }
+
+    const previousSocket = this.qwenSocket
+
+    try {
+      await this.connectUpstream({ isRotation: true })
+      await this.closeUpstreamSocketGracefully(previousSocket)
+
+      if (reason === "session-limit") {
+        console.info(
+          `[Livestream][Qwen] Proactively rotated session for ${this.id} before limit.`
+        )
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unable to rotate the livestream translation session."
+      this.setStatus("error", message)
+      this.stopIngestProcess()
+    }
+  }
+
   async start() {
     if (this.status !== "idle") {
       return
@@ -214,7 +602,6 @@ class LivestreamSession {
     this.startedAtMs = Date.now()
 
     try {
-      await warmServerAudioClassifier()
       const metadata = await resolveLivestreamMetadata(this.streamUrl)
       if (!metadata.directAudioUrl) {
         throw new Error("Unable to resolve the livestream audio URL from YouTube.")
@@ -227,6 +614,7 @@ class LivestreamSession {
         status: "connecting",
       })
 
+      await this.connectUpstream()
       this.attachFfmpeg(metadata.directAudioUrl)
       this.setStatus("connected")
     } catch (error) {
@@ -264,7 +652,7 @@ class LivestreamSession {
         "-ac",
         "1",
         "-ar",
-        String(PCM_SAMPLE_RATE),
+        "16000",
         "-f",
         "s16le",
         "pipe:1",
@@ -298,11 +686,10 @@ class LivestreamSession {
       this.ffmpegProcess = null
       this.isStoppingProcess = false
 
-      if (wasIntentional || this.status === "paused" || this.status === "disconnected") {
+      if (wasIntentional || isInactiveStatus(this.status)) {
         return
       }
 
-      void this.flushResidualAudio()
       this.setStatus("error", "The livestream audio connection ended unexpectedly.")
     })
   }
@@ -318,46 +705,25 @@ class LivestreamSession {
   }
 
   private handleAudioChunk(chunk: Buffer) {
-    void this.handleAudioChunkAsync(chunk)
-  }
-
-  private async handleAudioChunkAsync(chunk: Buffer) {
-    if (this.status === "paused" || this.status === "disconnected") {
+    if (isInactiveStatus(this.status)) {
       return
     }
 
-    const nextSegments = await this.speechSegmenter.pushPcm(chunk)
-    if (isInactiveStatus(this.status as LivestreamSessionStatus) || nextSegments.length === 0) {
+    if (
+      !this.qwenSocket ||
+      this.qwenSocket.readyState !== WebSocket.OPEN ||
+      this.connectingUpstream
+    ) {
       return
     }
 
-    this.chunkQueue.push(...nextSegments)
-
-    const maxQueuedChunks = Math.max(
-      1,
-      Math.ceil(
-        MAX_CHUNK_QUEUE_DURATION_MS /
-          getServerSpeechSegmenterConfig(this.mode).maxSegmentMs
-      )
+    this.qwenSocket.send(
+      JSON.stringify({
+        audio: chunk.toString("base64"),
+        event_id: nextQwenEventId(),
+        type: "input_audio_buffer.append",
+      })
     )
-
-    if (this.chunkQueue.length > maxQueuedChunks) {
-      const droppedChunkCount = this.chunkQueue.length - maxQueuedChunks
-      this.chunkQueue.splice(0, droppedChunkCount)
-      console.warn(
-        `[Livestream] Dropped ${droppedChunkCount} queued audio chunk(s) to keep backlog bounded.`
-      )
-    }
-
-    void this.processQueue()
-  }
-
-  private async flushResidualAudio() {
-    const nextSegments = await this.speechSegmenter.flush()
-    if (nextSegments.length > 0) {
-      this.chunkQueue.push(...nextSegments)
-    }
-    void this.processQueue()
   }
 
   private appendSegment(text: string, lowConfidence = false) {
@@ -381,9 +747,6 @@ class LivestreamSession {
     }
 
     this.history = [...this.history, entry].slice(-MAX_HISTORY_SEGMENTS)
-    this.committedTranslations = [...this.committedTranslations, dedupedText].slice(
-      -MAX_CONTEXT_SEGMENTS
-    )
 
     this.emit({
       type: "segment",
@@ -391,68 +754,29 @@ class LivestreamSession {
     })
   }
 
-  private async processQueue() {
-    if (
-      this.isTranslating ||
-      this.chunkQueue.length === 0 ||
-      this.status === "paused" ||
-      this.status === "disconnected" ||
-      this.status === "error"
-    ) {
+  private async stopUpstream() {
+    this.clearRotateTimer()
+    this.partialText = ""
+    this.emitPartial("")
+
+    const currentSocket = this.qwenSocket
+    if (currentSocket && currentSocket.readyState === WebSocket.OPEN) {
+      await this.closeUpstreamSocketGracefully(currentSocket)
+      if (this.qwenSocket === currentSocket) {
+        this.qwenSocket = null
+      }
+      this.connectingUpstream = false
       return
     }
-
-    const nextChunk = this.chunkQueue.shift()
-    if (!nextChunk) {
-      return
-    }
-
-    this.isTranslating = true
-    this.setStatus("transcribing")
 
     try {
-      const wavBuffer = encodeWav(nextChunk, PCM_SAMPLE_RATE)
-      const audioFile = new File([wavBuffer], "livestream-chunk.wav", {
-        type: "audio/wav",
-      })
-      const result = await processAudioTranslation({
-        audioFile,
-        context: this.committedTranslations.join(" ").trim(),
-      })
-
-      if (isInactiveStatus(this.status as LivestreamSessionStatus)) {
-        return
-      }
-
-      if (result.skipped) {
-        console.info(
-          `[Livestream][Timing] skipped=music classifier=${result.metrics.classifierMs?.toFixed(1) ?? "n/a"}ms total=${result.metrics.totalMs.toFixed(1)}ms region=${result.metrics.xGroqRegion ?? "n/a"} contextChars=${result.metrics.contextChars ?? 0}${result.metrics.contextTruncated ? " truncated=true" : ""} top=${result.metrics.topLabel ?? "unknown"} speech=${result.metrics.speechScore?.toFixed(3) ?? "n/a"} music=${result.metrics.musicScore?.toFixed(3) ?? "n/a"}`
-        )
-        this.setStatus("connected")
-        return
-      }
-
-      const assessment = assessGroqTranslation(result.payload)
-
-      console.info(
-        `[Livestream][Timing] skipped=false classifier=${result.metrics.classifierMs?.toFixed(1) ?? "n/a"}ms groq=${result.metrics.groqMs?.toFixed(1) ?? "n/a"}ms total=${result.metrics.totalMs.toFixed(1)}ms region=${result.metrics.xGroqRegion ?? "n/a"} contextChars=${result.metrics.contextChars ?? 0}${result.metrics.contextTruncated ? " truncated=true" : ""}${result.metrics.topLabel ? ` top=${result.metrics.topLabel} speech=${result.metrics.speechScore?.toFixed(3) ?? "n/a"} music=${result.metrics.musicScore?.toFixed(3) ?? "n/a"}` : ""}`
-      )
-
-      if (assessment.text) {
-        this.appendSegment(assessment.text, assessment.lowConfidence)
-      }
-      this.setStatus("connected")
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Groq translation failed."
-      this.setStatus("error", message)
-    } finally {
-      this.isTranslating = false
+      currentSocket?.close()
+    } catch {
+      // noop
     }
 
-    if (this.chunkQueue.length > 0 && !isInactiveStatus(this.status as LivestreamSessionStatus)) {
-      void this.processQueue()
-    }
+    this.qwenSocket = null
+    this.connectingUpstream = false
   }
 
   async pause() {
@@ -462,8 +786,7 @@ class LivestreamSession {
 
     this.setStatus("paused")
     this.stopIngestProcess()
-    await this.speechSegmenter.reset()
-    this.chunkQueue = []
+    await this.stopUpstream()
   }
 
   async resume() {
@@ -472,13 +795,15 @@ class LivestreamSession {
     }
 
     this.setStatus("connecting")
+
     try {
-      await warmServerAudioClassifier()
       const metadata = await resolveLivestreamMetadata(this.streamUrl)
       if (!metadata.directAudioUrl) {
         throw new Error("Unable to reconnect to the livestream audio feed.")
       }
+
       this.sourceTitle = metadata.sourceTitle
+      await this.connectUpstream()
       this.attachFfmpeg(metadata.directAudioUrl)
       this.setStatus("connected")
     } catch (error) {
@@ -491,8 +816,7 @@ class LivestreamSession {
 
   async stop() {
     this.stopIngestProcess()
-    await this.speechSegmenter.reset()
-    this.chunkQueue = []
+    await this.stopUpstream()
     this.setStatus("disconnected")
   }
 }
@@ -547,7 +871,7 @@ declare global {
   var __livestreamSessionManagerVersion__: number | undefined
 }
 
-const LIVESTREAM_SESSION_MANAGER_VERSION = 2
+const LIVESTREAM_SESSION_MANAGER_VERSION = 4
 
 if (
   !globalThis.__livestreamSessionManager__ ||

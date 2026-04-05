@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { warmServerAudioClassifier } from "@/lib/audio-content-classifier"
+import { bestEffortDeleteMuxAssetsForLiveStream } from "@/lib/mux-live-assets"
 import { mux } from "@/lib/mux"
 import { startMuxIngestSession, stopMuxIngestSession } from "@/lib/mux-ingest-client"
 import { muxSessionManager } from "@/lib/mux-session-manager"
@@ -60,6 +61,7 @@ export async function POST(request: Request) {
       event.type === "video.live_stream.disconnected"
     ) {
       const liveStream = await mux.video.liveStreams.retrieve(liveStreamId)
+      await bestEffortDeleteMuxAssetsForLiveStream(liveStream)
       await muxSessionManager.syncFromMuxLiveStream(liveStream)
       const stopPayload = await muxSessionManager.prepareWorkerStop(liveStreamId)
 
@@ -78,10 +80,16 @@ export async function POST(request: Request) {
       event.type === "video.live_stream.disabled" ||
       event.type === "video.live_stream.deleted"
     ) {
-      await muxSessionManager.syncFromMuxLiveStream({
-        id: liveStreamId,
-        status: event.type === "video.live_stream.deleted" ? "deleted" : "disabled",
-      })
+      if (event.type === "video.live_stream.disabled") {
+        const liveStream = await mux.video.liveStreams.retrieve(liveStreamId)
+        await bestEffortDeleteMuxAssetsForLiveStream(liveStream)
+        await muxSessionManager.syncFromMuxLiveStream(liveStream)
+      } else {
+        await muxSessionManager.syncFromMuxLiveStream({
+          id: liveStreamId,
+          status: "deleted",
+        })
+      }
       const stopPayload = await muxSessionManager.prepareWorkerStop(liveStreamId)
 
       if (stopPayload) {

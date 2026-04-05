@@ -30,11 +30,12 @@ import { Backlight } from "@/components/ui/backlight"
 import { Input } from "@/components/ui/input"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useAuthenticatedShellCallbacks } from "@/components/auth/authenticated-home-shell"
-import { useGroqRealtimeTranslation } from "@/hooks/use-groq-realtime-translation"
+import { useQwenRealtimeTranslation } from "@/hooks/use-qwen-realtime-translation"
 import { useLivestreamTranslation } from "@/hooks/use-livestream-translation"
 import type { LivestreamSessionSnapshot, LivestreamTranscriptEntry } from "@/lib/livestream-types"
 import type { TranscriptSessionSummary } from "@/lib/transcript-session-types"
 import {
+  dedupeBoundaryText,
   mergeTranscriptEntry,
   shouldMergeIntoPrevious,
 } from "@/lib/transcript-text-utils"
@@ -288,10 +289,18 @@ export default function LiveTranslationHome() {
 
       setTranscriptEntries((prev) => {
         const previousEntry = prev[prev.length - 1]
-        if (shouldMergeIntoPrevious(previousEntry, finalizedText, transcriptionMode)) {
+        const dedupedText = previousEntry
+          ? dedupeBoundaryText(previousEntry.text, finalizedText)
+          : finalizedText
+
+        if (!dedupedText) {
+          return prev
+        }
+
+        if (shouldMergeIntoPrevious(previousEntry, dedupedText, transcriptionMode)) {
           const mergedEntry = mergeTranscriptEntry(
             previousEntry as TranscriptEntry,
-            finalizedText
+            dedupedText
           )
           return [
             ...prev.slice(0, -1),
@@ -309,7 +318,7 @@ export default function LiveTranslationHome() {
           {
             id: `${now}-${prev.length}`,
             lowConfidence: Boolean(data.lowConfidence),
-            text: finalizedText,
+            text: dedupedText,
             timestampMs,
           },
         ]
@@ -329,7 +338,7 @@ export default function LiveTranslationHome() {
     errorSoundRef.current?.play().catch(() => {})
   }, [])
 
-  const groqTranslator = useGroqRealtimeTranslation(
+  const micTranslator = useQwenRealtimeTranslation(
     useMemo(
       () => ({
         onClassifierFallback: () => {
@@ -351,14 +360,23 @@ export default function LiveTranslationHome() {
 
       const message =
         error instanceof Error ? error.message : "Livestream translation failed."
+      setPartialTranscript("")
       setRecordingError(message)
       errorSoundRef.current?.play().catch(() => {})
+    },
+    onPartialTranscript: ({ text }) => {
+      if (activeSourceRef.current !== "livestream") {
+        return
+      }
+
+      setPartialTranscript(text?.trim() || "")
     },
     onFinalTranscript: (entry: LivestreamTranscriptEntry) => {
       if (activeSourceRef.current !== "livestream") {
         return
       }
 
+      setPartialTranscript("")
       setTranscriptEntries((prev) => {
         const previousEntry = prev[prev.length - 1]
         if (shouldMergeIntoPrevious(previousEntry, entry.text, transcriptionMode)) {
@@ -386,6 +404,7 @@ export default function LiveTranslationHome() {
       }
 
       setTranscriptEntries(snapshot.segments)
+      setPartialTranscript("")
       setSourceTitle(snapshot.sourceTitle || "")
       setRecordingError(snapshot.error || "")
       setIsPaused(snapshot.status === "paused")
@@ -399,6 +418,9 @@ export default function LiveTranslationHome() {
         setSourceTitle(nextSourceTitle)
       }
       setIsPaused(status === "paused")
+      if (status === "paused" || status === "disconnected" || status === "error") {
+        setPartialTranscript("")
+      }
       if (error) {
         setRecordingError(error)
       }
@@ -410,7 +432,7 @@ export default function LiveTranslationHome() {
       return
     }
 
-    if (micConnectionState === "connecting" && groqTranslator.status === "error") {
+    if (micConnectionState === "connecting" && micTranslator.status === "error") {
       updateMicConnectionState("idle")
       activeSourceRef.current = null
       setActiveSource(null)
@@ -418,7 +440,7 @@ export default function LiveTranslationHome() {
       return
     }
 
-    if (micConnectionState === "connected" && groqTranslator.status === "error") {
+    if (micConnectionState === "connected" && micTranslator.status === "error") {
       updateMicConnectionState("idle")
       activeSourceRef.current = null
       setActiveSource(null)
@@ -428,7 +450,7 @@ export default function LiveTranslationHome() {
 
     if (
       micConnectionState === "connected" &&
-      groqTranslator.status === "disconnected"
+      micTranslator.status === "disconnected"
     ) {
       updateMicConnectionState("idle")
       activeSourceRef.current = null
@@ -437,8 +459,8 @@ export default function LiveTranslationHome() {
       return
     }
 
-    setIsPaused(groqTranslator.status === "paused")
-  }, [activeSource, groqTranslator.status, micConnectionState, updateMicConnectionState])
+    setIsPaused(micTranslator.status === "paused")
+  }, [activeSource, micConnectionState, micTranslator.status, updateMicConnectionState])
 
   useEffect(() => {
     if (activeSource !== "livestream") {
@@ -818,7 +840,7 @@ export default function LiveTranslationHome() {
         return "connecting"
       }
       if (micConnectionState === "connected") {
-        return groqTranslator.status
+        return micTranslator.status
       }
       return "idle"
     }
@@ -830,7 +852,7 @@ export default function LiveTranslationHome() {
     return "idle"
   }, [
     activeSource,
-    groqTranslator.status,
+    micTranslator.status,
     livestreamTranslator.status,
     micConnectionState,
     viewerSession,
@@ -921,8 +943,8 @@ export default function LiveTranslationHome() {
 
     if (currentSource === "microphone") {
       try {
-        groqTranslator.disconnect()
-        groqTranslator.clearTranscripts()
+        micTranslator.disconnect()
+        micTranslator.clearTranscripts()
       } catch {
         // noop
       }
@@ -941,7 +963,7 @@ export default function LiveTranslationHome() {
   }, [
     clearViewerSession,
     endHostSharedSession,
-    groqTranslator,
+    micTranslator,
     livestreamTranslator,
     resetTranscript,
     updateMicConnectionState,
@@ -966,19 +988,18 @@ export default function LiveTranslationHome() {
       updateMicConnectionState("connecting")
 
       try {
-        await groqTranslator.connect({
-          classifierMode: "device",
+        await micTranslator.connect({
+          languageCode: "es",
           microphone: {
             echoCancellation: false,
-            noiseSuppression: false,
+            noiseSuppression: true,
             autoGainControl: true,
           },
-          transcriptionMode,
         })
 
         if (activeSourceRef.current !== "microphone") {
           try {
-            groqTranslator.disconnect()
+            micTranslator.disconnect()
           } catch {
             // noop
           }
@@ -1019,7 +1040,7 @@ export default function LiveTranslationHome() {
       setActiveSource(null)
     }
   }, [
-    groqTranslator,
+    micTranslator,
     isSessionActive,
     livestreamTranslator,
     resetTranscript,
@@ -1033,10 +1054,10 @@ export default function LiveTranslationHome() {
 
   const handlePauseToggle = useCallback(async () => {
     if (activeSourceRef.current === "microphone") {
-      if (groqTranslator.status === "paused") {
-        await groqTranslator.resume()
+      if (micTranslator.status === "paused") {
+        await micTranslator.resume()
       } else {
-        await groqTranslator.pause()
+        await micTranslator.pause()
       }
       return
     }
@@ -1048,7 +1069,7 @@ export default function LiveTranslationHome() {
         await livestreamTranslator.pause()
       }
     }
-  }, [groqTranslator, livestreamTranslator])
+  }, [livestreamTranslator, micTranslator])
 
   const handleCheckChannel = useCallback(async () => {
     setChannelLookup({ status: "checking" })
@@ -1273,6 +1294,13 @@ export default function LiveTranslationHome() {
                   )}
 
                   <TranscriberTranscript
+                    activityState={
+                      currentStatus === "transcribing"
+                        ? "processing"
+                        : currentStatus === "connected"
+                          ? "listening"
+                          : undefined
+                    }
                     entries={transcriptEntries}
                     error={recordingError}
                     isConnected={isSessionActive}
@@ -1453,6 +1481,16 @@ export default function LiveTranslationHome() {
 
           {!viewerSession ? (
             <BottomControls
+              activityState={
+                transcriptEntries.length > 0 &&
+                !recordingError &&
+                !partialTranscript &&
+                (currentStatus === "transcribing" || currentStatus === "connected")
+                  ? currentStatus === "transcribing"
+                    ? "processing"
+                    : "listening"
+                  : undefined
+              }
               isConnected={isSessionActive}
               isPaused={isPaused}
               hasError={Boolean(recordingError)}

@@ -12,6 +12,7 @@ import type {
 interface LivestreamConfig {
   onError?: (error: Error | Event) => void
   onFinalTranscript?: (entry: LivestreamTranscriptEntry) => void
+  onPartialTranscript?: (data: { text?: string }) => void
   onSnapshot?: (snapshot: LivestreamSessionSnapshot) => void
   onStatusChange?: (payload: {
     error?: string
@@ -144,6 +145,13 @@ export function useLivestreamTranslation(config: LivestreamConfig): LivestreamHo
             (event as MessageEvent<string>).data
           ) as LivestreamTranscriptEntry
           config.onFinalTranscript?.(entry)
+        })
+
+        eventSource.addEventListener("partial", (event) => {
+          const payload = JSON.parse(
+            (event as MessageEvent<string>).data
+          ) as { text?: string }
+          config.onPartialTranscript?.(payload)
         })
 
         eventSource.addEventListener("status", (event) => {

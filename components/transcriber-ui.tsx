@@ -20,6 +20,8 @@ export interface TranscriptEntry {
   timestampMs: number
 }
 
+export type TranscriptTextAnimationMode = "normal" | "fast" | "none"
+
 interface BibleVerseLookup {
   chapter: number
   bookName: string
@@ -42,12 +44,20 @@ interface BibleVerseLookupState {
 const CHAPTER_VERSES_PER_PAGE = 5
 
 const TranscriptCharacter = React.memo(
-  ({ char, delay }: { char: string; delay: number }) => {
+  ({
+    char,
+    delay,
+    duration = 0.5,
+  }: {
+    char: string
+    delay: number
+    duration?: number
+  }) => {
     return (
       <motion.span
         initial={{ filter: "blur(3.5px)", opacity: 0 }}
         animate={{ filter: "none", opacity: 1 }}
-        transition={{ duration: 0.5, delay }}
+        transition={{ duration, delay }}
         style={{ willChange: delay > 0 ? "filter, opacity" : "auto" }}
       >
         {char}
@@ -56,6 +66,27 @@ const TranscriptCharacter = React.memo(
   }
 )
 TranscriptCharacter.displayName = "TranscriptCharacter"
+
+function getTranscriptCharacterMotion(
+  globalIndex: number,
+  previousNumChars: number,
+  mode: TranscriptTextAnimationMode
+) {
+  if (mode === "none") {
+    return { delay: 0, duration: 0 }
+  }
+
+  const step = mode === "fast" ? 0.0035 : 0.012
+  const duration = mode === "fast" ? 0.16 : 0.5
+
+  return {
+    delay:
+      globalIndex >= previousNumChars
+        ? (globalIndex - previousNumChars + 1) * step
+        : 0,
+    duration,
+  }
+}
 
 async function fetchBibleVerse(query: string): Promise<BibleVerseLookup> {
   const response = await fetch(
@@ -242,6 +273,7 @@ BackgroundAura.displayName = "BackgroundAura"
 
 export const BottomControls = React.memo(
   ({
+    activityState,
     isConnected,
     isPaused,
     hasError,
@@ -249,6 +281,7 @@ export const BottomControls = React.memo(
     onPauseToggle,
     onStop,
   }: {
+    activityState?: "listening" | "processing"
     isConnected: boolean
     isPaused: boolean
     hasError: boolean
@@ -266,7 +299,12 @@ export const BottomControls = React.memo(
             exit={{ opacity: 0, y: 10, transition: { duration: 0.1 } }}
             className="fixed inset-x-4 bottom-6 z-50 flex items-center justify-center sm:inset-x-auto sm:bottom-8 sm:left-1/2 sm:-translate-x-1/2"
           >
-            <div className="bg-background/55 border-border/60 flex w-full max-w-sm items-center gap-2 rounded-2xl border p-2 shadow-lg backdrop-blur-md sm:w-auto">
+            <div className="bg-background/55 border-border/60 flex w-full max-w-md items-center gap-2 rounded-2xl border p-2 shadow-lg backdrop-blur-md sm:w-auto">
+              {activityState ? (
+                <div className="hidden sm:flex">
+                  <AudioActivityIndicator state={activityState} />
+                </div>
+              ) : null}
               <button
                 onClick={onPauseToggle}
                 className="bg-background/80 text-foreground border-border/50 inline-flex min-h-12 flex-1 items-center justify-center rounded-xl border px-4 py-3 text-sm font-medium transition-colors hover:bg-background"
@@ -289,6 +327,7 @@ export const BottomControls = React.memo(
     )
   },
   (prev, next) => {
+    if (prev.activityState !== next.activityState) return false
     if (prev.isConnected !== next.isConnected) return false
     if (prev.isPaused !== next.isPaused) return false
     if (prev.hasError !== next.hasError) return false
@@ -298,19 +337,95 @@ export const BottomControls = React.memo(
 )
 BottomControls.displayName = "BottomControls"
 
+const AudioActivityIndicator = React.memo(
+  ({ state }: { state: "listening" | "processing" }) => {
+    const isProcessing = state === "processing"
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 8, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 8, scale: 0.96 }}
+        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+        className="bg-background/42 border-border/40 relative inline-flex items-center gap-3 overflow-hidden rounded-xl border px-3 py-2 shadow-[0_12px_36px_rgba(0,0,0,0.22)] backdrop-blur-xl"
+      >
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_50%,rgba(110,231,255,0.16),transparent_30%),radial-gradient(circle_at_82%_50%,rgba(255,183,77,0.12),transparent_28%)]" />
+        <div className="relative flex h-4 items-end gap-1">
+          {[0, 1, 2, 3].map((index) => (
+            <motion.span
+              key={index}
+              animate={{
+                height: isProcessing
+                  ? ["0.35rem", "0.8rem", "0.45rem"]
+                  : ["0.4rem", "1rem", "0.55rem", "0.85rem"],
+                opacity: isProcessing ? [0.45, 0.9, 0.5] : [0.5, 1, 0.55, 0.92],
+              }}
+              transition={{
+                duration: isProcessing ? 1 : 1.35,
+                ease: "easeInOut",
+                repeat: Number.POSITIVE_INFINITY,
+                delay: index * (isProcessing ? 0.08 : 0.12),
+              }}
+              className={cn(
+                "block w-1 rounded-full",
+                isProcessing ? "bg-amber-200/80" : "bg-cyan-200/85"
+              )}
+              style={{
+                boxShadow: isProcessing
+                  ? "0 0 18px rgba(251, 191, 36, 0.18)"
+                  : "0 0 18px rgba(103, 232, 249, 0.18)",
+              }}
+            />
+          ))}
+        </div>
+        <div className="relative flex items-center gap-2">
+          <span
+            className={cn(
+              "text-[11px] font-medium tracking-[0.16em] uppercase",
+              isProcessing ? "text-amber-50/72" : "text-white/62"
+            )}
+          >
+            {isProcessing ? "Processing" : "Listening"}
+          </span>
+          <motion.span
+            animate={{
+              opacity: isProcessing ? [0.5, 1, 0.5] : [0.35, 0.8, 0.35],
+              scale: isProcessing ? [0.95, 1.12, 0.95] : [0.92, 1.04, 0.92],
+            }}
+            transition={{
+              duration: isProcessing ? 0.95 : 1.6,
+              ease: "easeInOut",
+              repeat: Number.POSITIVE_INFINITY,
+            }}
+            className={cn(
+              "block h-1.5 w-1.5 rounded-full",
+              isProcessing ? "bg-amber-300/85" : "bg-cyan-300/80"
+            )}
+          />
+        </div>
+      </motion.div>
+    )
+  }
+)
+AudioActivityIndicator.displayName = "AudioActivityIndicator"
+
 export const TranscriberTranscript = React.memo(
   ({
+    activityState,
     entries,
     error,
     isConnected,
     partialTranscript,
     previewOnly,
+    textAnimation = "normal",
   }: {
+    activityState?: "listening" | "processing"
     entries: TranscriptEntry[]
     error: string
     isConnected: boolean
     partialTranscript?: string
     previewOnly?: boolean
+    textAnimation?: TranscriptTextAnimationMode
   }) => {
     const topFogHeightClass = previewOnly ? "h-28" : "h-24"
     const viewportHeightClass = previewOnly
@@ -488,6 +603,7 @@ export const TranscriberTranscript = React.memo(
                                           : undefined
                                       }
                                       onOpen={() => void ensureVerseLookup(fragment.query)}
+                                      textAnimation={textAnimation}
                                     />
                                   ) : (
                                     <span
@@ -495,17 +611,18 @@ export const TranscriberTranscript = React.memo(
                                     >
                                       {fragment.text.split("").map((char, index) => {
                                         const globalIndex = fragmentStart + index
-                                        const delay =
-                                          globalIndex >= previousNumChars
-                                            ? (globalIndex - previousNumChars + 1) *
-                                              0.012
-                                            : 0
+                                        const motion = getTranscriptCharacterMotion(
+                                          globalIndex,
+                                          previousNumChars,
+                                          textAnimation
+                                        )
 
                                         return (
                                           <TranscriptCharacter
                                             key={`${entry.id}-${fragmentIndex}-${globalIndex}`}
                                             char={char}
-                                            delay={delay}
+                                            delay={motion.delay}
+                                            duration={motion.duration}
                                           />
                                         )
                                       })}
@@ -542,6 +659,7 @@ export const TranscriberTranscript = React.memo(
                                           : undefined
                                       }
                                       onOpen={() => void ensureVerseLookup(fragment.query)}
+                                      textAnimation={textAnimation}
                                     />
                                   ) : (
                                     <span
@@ -549,17 +667,18 @@ export const TranscriberTranscript = React.memo(
                                     >
                                       {fragment.text.split("").map((char, index) => {
                                         const globalIndex = fragmentStart + index
-                                        const delay =
-                                          globalIndex >= previousNumChars
-                                            ? (globalIndex - previousNumChars + 1) *
-                                              0.012
-                                            : 0
+                                        const motion = getTranscriptCharacterMotion(
+                                          globalIndex,
+                                          previousNumChars,
+                                          textAnimation
+                                        )
 
                                         return (
                                           <TranscriptCharacter
                                             key={`partial-${fragmentIndex}-${globalIndex}`}
                                             char={char}
-                                            delay={delay}
+                                            delay={motion.delay}
+                                            duration={motion.duration}
                                           />
                                         )
                                       })}
@@ -630,6 +749,7 @@ const BibleReferencePopover = React.memo(
     previousNumChars,
     lookupState,
     onOpen,
+    textAnimation = "normal",
   }: {
     fragment: ReturnType<typeof getBibleReferenceFragments>[number]
     fragmentIndex: number
@@ -637,6 +757,7 @@ const BibleReferencePopover = React.memo(
     previousNumChars: number
     lookupState?: BibleVerseLookupState
     onOpen: () => void
+    textAnimation?: TranscriptTextAnimationMode
   }) => {
     const normalizedReferenceText = fragment.text.replace(/\s+/g, " ").trim()
     const hasExplicitVerseSyntax =
@@ -744,16 +865,18 @@ const BibleReferencePopover = React.memo(
           >
             {fragment.text.split("").map((char, index) => {
               const globalIndex = fragmentStart + index
-              const delay =
-                globalIndex >= previousNumChars
-                  ? (globalIndex - previousNumChars + 1) * 0.012
-                  : 0
+              const motion = getTranscriptCharacterMotion(
+                globalIndex,
+                previousNumChars,
+                textAnimation
+              )
 
               return (
                 <TranscriptCharacter
                   key={`${fragmentIndex}-${globalIndex}`}
                   char={char}
-                  delay={delay}
+                  delay={motion.delay}
+                  duration={motion.duration}
                 />
               )
             })}
