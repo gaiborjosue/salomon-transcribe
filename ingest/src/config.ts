@@ -1,6 +1,7 @@
 import { getServerSpeechSegmenterConfig } from "@/lib/server-speech-segmenter"
 
 export const PORT = Number(process.env.INGEST_PORT || 4100)
+export const HOST = process.env.INGEST_HOST?.trim() || "0.0.0.0"
 export const RTMP_INPUT_BASE_URL =
   process.env.MEDIAMTX_RTMP_BASE_URL ?? "rtmp://127.0.0.1:1935/live"
 export const PCM_SAMPLE_RATE = 16000

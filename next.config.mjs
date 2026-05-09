@@ -1,8 +1,15 @@
+import { fileURLToPath } from "node:url"
+
+const projectRoot = fileURLToPath(new URL(".", import.meta.url))
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   cacheComponents: true,
   images: {
     unoptimized: true,
+  },
+  turbopack: {
+    root: projectRoot,
   },
 }
 

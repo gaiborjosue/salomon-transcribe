@@ -2,7 +2,7 @@ import "dotenv/config"
 
 import { createServer } from "node:http"
 
-import { PORT, RTMP_INPUT_BASE_URL } from "@/ingest/src/config"
+import { HOST, PORT, RTMP_INPUT_BASE_URL } from "@/ingest/src/config"
 import { ChunkedIngestSession } from "@/ingest/src/sessions/chunked-ingest-session"
 import { MicRealtimeBridge } from "@/ingest/src/sessions/mic-realtime-bridge"
 import { MuxQwenIngestSession } from "@/ingest/src/sessions/mux-qwen-ingest-session"
@@ -217,6 +217,6 @@ server.on("upgrade", (request, socket, head) => {
   })
 })
 
-server.listen(PORT, "127.0.0.1", () => {
-  console.info(`[Ingest] Listening on http://127.0.0.1:${PORT}`)
+server.listen(PORT, HOST, () => {
+  console.info(`[Ingest] Listening on http://${HOST}:${PORT}`)
 })

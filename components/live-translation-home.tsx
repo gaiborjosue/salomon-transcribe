@@ -73,7 +73,6 @@ const LiveTranslationLivestreamController = dynamic(
   { ssr: false }
 )
 
-type InputSource = "microphone" | "livestream"
 type TranscriptionMode = "conversation" | "sermon"
 type MicConnectionState = "idle" | "connecting" | "connected"
 type SharedSessionStatus = "active" | "ended"
@@ -1094,7 +1093,7 @@ export default function LiveTranslationHome() {
               error instanceof Error ? error.message : "Livestream translation failed."
             setPartialTranscript("")
             setRecordingError(message)
-            errorSoundRef.current?.play().catch(() => {})
+            playError()
           }}
           onFinalTranscript={(entry: LivestreamTranscriptEntry) => {
             if (activeSourceRef.current !== "livestream") {
@@ -1103,24 +1102,7 @@ export default function LiveTranslationHome() {
 
             setPartialTranscript("")
             setTranscriptEntries((prev) => {
-              const previousEntry = prev[prev.length - 1]
-              if (shouldMergeIntoPrevious(previousEntry, entry.text, transcriptionMode)) {
-                const mergedEntry = mergeTranscriptEntry(
-                  previousEntry as TranscriptEntry,
-                  entry.text
-                )
-                return [
-                  ...prev.slice(0, -1),
-                  {
-                    ...mergedEntry,
-                    lowConfidence:
-                      Boolean((previousEntry as TranscriptEntry | undefined)?.lowConfidence) ||
-                      Boolean(entry.lowConfidence),
-                  },
-                ]
-              }
-
-              return [...prev, entry]
+              return appendMergedTranscriptEntry(prev, entry, transcriptionMode)
             })
           }}
           onPartialTranscript={({ text }) => {

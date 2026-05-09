@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto"
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process"
-import path from "node:path"
+
+import {
+  getLocalWorkerPythonPath,
+  getWorkerScriptPath,
+} from "@/lib/server-worker-paths"
 
 const PCM_SAMPLE_RATE = 16000
 const BYTES_PER_SAMPLE = 2
@@ -54,8 +58,8 @@ class SileroVadWorkerClient {
     }
 
     const projectRoot = process.cwd()
-    const pythonPath = path.join(projectRoot, ".venv-yamnet", "bin", "python")
-    const scriptPath = path.join(projectRoot, "scripts", "silero_vad_worker.py")
+    const pythonPath = getLocalWorkerPythonPath(projectRoot)
+    const scriptPath = getWorkerScriptPath(projectRoot, "silero_vad_worker.py")
 
     this.workerReadyPromise = new Promise<void>((resolve) => {
       this.workerReadyResolve = resolve

@@ -1,0 +1,7 @@
+.next
+node_modules
+.venv-yamnet
+.env
+.env.local
+scripts/__pycache__
+
