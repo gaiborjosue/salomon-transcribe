@@ -5,8 +5,6 @@ import type { TranscriptEntry } from "@/components/transcriber-ui"
 import { getApiSession } from "@/lib/api-auth"
 import { muxSessionManager } from "@/lib/mux-session-manager"
 
-export const runtime = "nodejs"
-
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ sessionId: string }> }

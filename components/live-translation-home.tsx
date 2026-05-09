@@ -1,7 +1,8 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Link2 } from "lucide-react"
+import { Copy, Link2, Mic, RadioTower, Share2, Users } from "lucide-react"
 import { toast } from "sonner"
 
 import { useAuthenticatedShellCallbacks } from "@/components/auth/authenticated-home-shell"
@@ -19,9 +20,31 @@ import {
   type TranscriptEntry,
 } from "@/components/transcriber-ui"
 import { Button } from "@/components/ui/button"
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer"
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field"
+import { Backlight } from "@/components/ui/backlight"
+import { Input } from "@/components/ui/input"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { useAudioCues } from "@/hooks/use-audio-cues"
-import { useQwenRealtimeTranslation } from "@/hooks/use-qwen-realtime-translation"
-import { useLivestreamTranslation } from "@/hooks/use-livestream-translation"
+import type {
+  LivestreamControllerHandle,
+  LivestreamControllerStatus,
+  MicrophoneControllerHandle,
+  MicControllerStatus,
+} from "@/components/live-translation-controller-types"
 import type { LivestreamSessionSnapshot, LivestreamTranscriptEntry } from "@/lib/livestream-types"
 import type { TranscriptSessionSummary } from "@/lib/transcript-session-types"
 import { appendMergedTranscriptEntry } from "@/lib/transcript-entry-merge"
@@ -34,6 +57,23 @@ import {
   SHARE_CODE_PREFIX,
 } from "@/lib/share-code-utils"
 
+const LiveTranslationMicrophoneController = dynamic(
+  () =>
+    import("@/components/live-translation-microphone-controller").then(
+      (module) => module.LiveTranslationMicrophoneController
+    ),
+  { ssr: false }
+)
+
+const LiveTranslationLivestreamController = dynamic(
+  () =>
+    import("@/components/live-translation-livestream-controller").then(
+      (module) => module.LiveTranslationLivestreamController
+    ),
+  { ssr: false }
+)
+
+type InputSource = "microphone" | "livestream"
 type TranscriptionMode = "conversation" | "sermon"
 type MicConnectionState = "idle" | "connecting" | "connected"
 type SharedSessionStatus = "active" | "ended"
@@ -84,6 +124,9 @@ export default function LiveTranslationHome() {
   const [isMac, setIsMac] = useState(true)
   const [micConnectionState, setMicConnectionState] =
     useState<MicConnectionState>("idle")
+  const [micStatus, setMicStatus] = useState<MicControllerStatus>("idle")
+  const [livestreamStatus, setLivestreamStatus] =
+    useState<LivestreamControllerStatus>("idle")
   const [shareDrawerOpen, setShareDrawerOpen] = useState(false)
   const [joinDrawerOpen, setJoinDrawerOpen] = useState(false)
   const [joinCode, setJoinCode] = useState("")
@@ -95,6 +138,8 @@ export default function LiveTranslationHome() {
 
   const activeSourceRef = useRef<InputSource | null>(null)
   const micConnectionStateRef = useRef<MicConnectionState>("idle")
+  const microphoneControllerRef = useRef<MicrophoneControllerHandle | null>(null)
+  const livestreamControllerRef = useRef<LivestreamControllerHandle | null>(null)
   const micSessionStartedAtRef = useRef<number | null>(null)
   const activeSessionStartedAtRef = useRef<number | null>(null)
   const micLastTranscriptRef = useRef("")
@@ -255,84 +300,12 @@ export default function LiveTranslationHome() {
     playError()
   }, [playError])
 
-  const micTranslator = useQwenRealtimeTranslation(
-    useMemo(
-      () => ({
-        onClassifierFallback: () => {
-          toast("On-device classifier unavailable. Using server instead.")
-        },
-        onPartialTranscript: onMicPartialTranscript,
-        onFinalTranscript: onMicFinalTranscript,
-        onError: onMicError,
-      }),
-      [onMicError, onMicFinalTranscript, onMicPartialTranscript]
-    )
-  )
-
-  const livestreamTranslator = useLivestreamTranslation({
-    onError: (error) => {
-      if (activeSourceRef.current !== "livestream") {
-        return
-      }
-
-      const message =
-        error instanceof Error ? error.message : "Livestream translation failed."
-      setPartialTranscript("")
-      setRecordingError(message)
-      playError()
-    },
-    onPartialTranscript: ({ text }) => {
-      if (activeSourceRef.current !== "livestream") {
-        return
-      }
-
-      setPartialTranscript(text?.trim() || "")
-    },
-    onFinalTranscript: (entry: LivestreamTranscriptEntry) => {
-      if (activeSourceRef.current !== "livestream") {
-        return
-      }
-
-      setPartialTranscript("")
-      setTranscriptEntries((prev) => {
-        return appendMergedTranscriptEntry(prev, entry, transcriptionMode)
-      })
-    },
-    onSnapshot: (snapshot: LivestreamSessionSnapshot) => {
-      if (activeSourceRef.current !== "livestream") {
-        return
-      }
-
-      setTranscriptEntries(snapshot.segments)
-      setPartialTranscript("")
-      setSourceTitle(snapshot.sourceTitle || "")
-      setRecordingError(snapshot.error || "")
-      setIsPaused(snapshot.status === "paused")
-    },
-    onStatusChange: ({ error, sourceTitle: nextSourceTitle, status }) => {
-      if (activeSourceRef.current !== "livestream") {
-        return
-      }
-
-      if (typeof nextSourceTitle === "string") {
-        setSourceTitle(nextSourceTitle)
-      }
-      setIsPaused(status === "paused")
-      if (status === "paused" || status === "disconnected" || status === "error") {
-        setPartialTranscript("")
-      }
-      if (error) {
-        setRecordingError(error)
-      }
-    },
-  })
-
   useEffect(() => {
     if (activeSource !== "microphone") {
       return
     }
 
-    if (micConnectionState === "connecting" && micTranslator.status === "error") {
+    if (micConnectionState === "connecting" && micStatus === "error") {
       updateMicConnectionState("idle")
       activeSourceRef.current = null
       setActiveSource(null)
@@ -340,7 +313,7 @@ export default function LiveTranslationHome() {
       return
     }
 
-    if (micConnectionState === "connected" && micTranslator.status === "error") {
+    if (micConnectionState === "connected" && micStatus === "error") {
       updateMicConnectionState("idle")
       activeSourceRef.current = null
       setActiveSource(null)
@@ -348,10 +321,7 @@ export default function LiveTranslationHome() {
       return
     }
 
-    if (
-      micConnectionState === "connected" &&
-      micTranslator.status === "disconnected"
-    ) {
+    if (micConnectionState === "connected" && micStatus === "disconnected") {
       updateMicConnectionState("idle")
       activeSourceRef.current = null
       setActiveSource(null)
@@ -359,26 +329,23 @@ export default function LiveTranslationHome() {
       return
     }
 
-    setIsPaused(micTranslator.status === "paused")
-  }, [activeSource, micConnectionState, micTranslator.status, updateMicConnectionState])
+    setIsPaused(micStatus === "paused")
+  }, [activeSource, micConnectionState, micStatus, updateMicConnectionState])
 
   useEffect(() => {
     if (activeSource !== "livestream") {
       return
     }
 
-    if (
-      livestreamTranslator.status === "disconnected" ||
-      livestreamTranslator.status === "error"
-    ) {
+    if (livestreamStatus === "disconnected" || livestreamStatus === "error") {
       activeSourceRef.current = null
       setActiveSource(null)
       setIsPaused(false)
       return
     }
 
-    setIsPaused(livestreamTranslator.status === "paused")
-  }, [activeSource, livestreamTranslator.status])
+    setIsPaused(livestreamStatus === "paused")
+  }, [activeSource, livestreamStatus])
 
   const subscribeToSharedSession = useCallback(
     (snapshot: SharedSessionSnapshot) => {
@@ -740,23 +707,17 @@ export default function LiveTranslationHome() {
         return "connecting"
       }
       if (micConnectionState === "connected") {
-        return micTranslator.status
+        return micStatus
       }
       return "idle"
     }
 
     if (activeSource === "livestream") {
-      return livestreamTranslator.status
+      return livestreamStatus
     }
 
     return "idle"
-  }, [
-    activeSource,
-    micTranslator.status,
-    livestreamTranslator.status,
-    micConnectionState,
-    viewerSession,
-  ])
+  }, [activeSource, livestreamStatus, micConnectionState, micStatus, viewerSession])
 
   const isViewerMode = viewerSession !== null
 
@@ -843,16 +804,18 @@ export default function LiveTranslationHome() {
 
     if (currentSource === "microphone") {
       try {
-        micTranslator.disconnect()
-        micTranslator.clearTranscripts()
+        microphoneControllerRef.current?.disconnect()
+        microphoneControllerRef.current?.clearTranscripts()
       } catch {
         // noop
       }
       updateMicConnectionState("idle")
+      setMicStatus("idle")
     }
 
     if (currentSource === "livestream") {
-      await livestreamTranslator.disconnect()
+      await livestreamControllerRef.current?.disconnect()
+      setLivestreamStatus("idle")
     }
 
     activeSourceRef.current = null
@@ -863,8 +826,6 @@ export default function LiveTranslationHome() {
   }, [
     clearViewerSession,
     endHostSharedSession,
-    micTranslator,
-    livestreamTranslator,
     playEnd,
     resetTranscript,
     updateMicConnectionState,
@@ -889,7 +850,7 @@ export default function LiveTranslationHome() {
       updateMicConnectionState("connecting")
 
       try {
-        await micTranslator.connect({
+        await microphoneControllerRef.current?.connect({
           languageCode: "es",
           microphone: {
             echoCancellation: false,
@@ -900,7 +861,7 @@ export default function LiveTranslationHome() {
 
         if (activeSourceRef.current !== "microphone") {
           try {
-            micTranslator.disconnect()
+            microphoneControllerRef.current?.disconnect()
           } catch {
             // noop
           }
@@ -930,7 +891,7 @@ export default function LiveTranslationHome() {
     setActiveSource("livestream")
 
     try {
-      await livestreamTranslator.connect({
+      await livestreamControllerRef.current?.connect({
         streamUrl: trimmedUrl,
         transcriptionMode,
       })
@@ -941,9 +902,7 @@ export default function LiveTranslationHome() {
       setActiveSource(null)
     }
   }, [
-    micTranslator,
     isSessionActive,
-    livestreamTranslator,
     playStart,
     resetTranscript,
     selectedSource,
@@ -956,22 +915,22 @@ export default function LiveTranslationHome() {
 
   const handlePauseToggle = useCallback(async () => {
     if (activeSourceRef.current === "microphone") {
-      if (micTranslator.status === "paused") {
-        await micTranslator.resume()
+      if (micStatus === "paused") {
+        await microphoneControllerRef.current?.resume()
       } else {
-        await micTranslator.pause()
+        await microphoneControllerRef.current?.pause()
       }
       return
     }
 
     if (activeSourceRef.current === "livestream") {
-      if (livestreamTranslator.status === "paused") {
-        await livestreamTranslator.resume()
+      if (livestreamStatus === "paused") {
+        await livestreamControllerRef.current?.resume()
       } else {
-        await livestreamTranslator.pause()
+        await livestreamControllerRef.current?.pause()
       }
     }
-  }, [livestreamTranslator, micTranslator])
+  }, [livestreamStatus, micStatus])
 
   const handleCheckChannel = useCallback(async () => {
     setChannelLookup({ status: "checking" })
@@ -1114,6 +1073,94 @@ export default function LiveTranslationHome() {
 
   return (
     <div className="dark text-foreground min-h-[100dvh] w-full bg-[#1f1f1f]">
+      {(selectedSource === "microphone" || activeSource === "microphone") && (
+        <LiveTranslationMicrophoneController
+          controllerRef={microphoneControllerRef}
+          onError={onMicError}
+          onFinalTranscript={onMicFinalTranscript}
+          onPartialTranscript={onMicPartialTranscript}
+          onStatusChange={setMicStatus}
+        />
+      )}
+      {(selectedSource === "livestream" || activeSource === "livestream") && (
+        <LiveTranslationLivestreamController
+          controllerRef={livestreamControllerRef}
+          onError={(error) => {
+            if (activeSourceRef.current !== "livestream") {
+              return
+            }
+
+            const message =
+              error instanceof Error ? error.message : "Livestream translation failed."
+            setPartialTranscript("")
+            setRecordingError(message)
+            errorSoundRef.current?.play().catch(() => {})
+          }}
+          onFinalTranscript={(entry: LivestreamTranscriptEntry) => {
+            if (activeSourceRef.current !== "livestream") {
+              return
+            }
+
+            setPartialTranscript("")
+            setTranscriptEntries((prev) => {
+              const previousEntry = prev[prev.length - 1]
+              if (shouldMergeIntoPrevious(previousEntry, entry.text, transcriptionMode)) {
+                const mergedEntry = mergeTranscriptEntry(
+                  previousEntry as TranscriptEntry,
+                  entry.text
+                )
+                return [
+                  ...prev.slice(0, -1),
+                  {
+                    ...mergedEntry,
+                    lowConfidence:
+                      Boolean((previousEntry as TranscriptEntry | undefined)?.lowConfidence) ||
+                      Boolean(entry.lowConfidence),
+                  },
+                ]
+              }
+
+              return [...prev, entry]
+            })
+          }}
+          onPartialTranscript={({ text }) => {
+            if (activeSourceRef.current !== "livestream") {
+              return
+            }
+
+            setPartialTranscript(text?.trim() || "")
+          }}
+          onSnapshot={(snapshot: LivestreamSessionSnapshot) => {
+            if (activeSourceRef.current !== "livestream") {
+              return
+            }
+
+            setTranscriptEntries(snapshot.segments)
+            setPartialTranscript("")
+            setSourceTitle(snapshot.sourceTitle || "")
+            setRecordingError(snapshot.error || "")
+            setIsPaused(snapshot.status === "paused")
+          }}
+          onStatusChange={({ error, sourceTitle: nextSourceTitle, status }) => {
+            setLivestreamStatus(status)
+
+            if (activeSourceRef.current !== "livestream") {
+              return
+            }
+
+            if (typeof nextSourceTitle === "string") {
+              setSourceTitle(nextSourceTitle)
+            }
+            setIsPaused(status === "paused")
+            if (status === "paused" || status === "disconnected" || status === "error") {
+              setPartialTranscript("")
+            }
+            if (error) {
+              setRecordingError(error)
+            }
+          }}
+        />
+      )}
       <div className="mx-auto flex min-h-[100dvh] w-full max-w-4xl flex-col items-center justify-center px-4 sm:px-8">
         <div className="relative flex min-h-[100dvh] w-full flex-col items-center justify-center gap-8">
           {!isSessionActive ? (

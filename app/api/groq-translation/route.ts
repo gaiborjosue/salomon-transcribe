@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server"
 import { processAudioTranslation } from "@/lib/process-audio-translation"
 
-export const runtime = "nodejs"
-
 export async function POST(request: Request) {
   try {
     const incomingFormData = await request.formData()

@@ -6,8 +6,6 @@ import {
   type SharedSourceType,
 } from "@/lib/shared-session-manager"
 
-export const runtime = "nodejs"
-
 export async function POST(request: Request) {
   const authSession = await getApiSession(request)
   if (!authSession) {

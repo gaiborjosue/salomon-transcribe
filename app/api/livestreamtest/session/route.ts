@@ -3,8 +3,6 @@ import { NextResponse } from "next/server"
 import { livestreamSessionManager } from "@/lib/livestream-session-manager"
 import type { LivestreamMode } from "@/lib/livestream-types"
 
-export const runtime = "nodejs"
-
 export async function POST(request: Request) {
   try {
     const payload = (await request.json()) as {

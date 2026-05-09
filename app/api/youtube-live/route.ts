@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server"
 
-export const runtime = "nodejs"
-
 const CHANNEL_ID = "UC9KL3tLQfmky4fxbFlQGt5A"
 const SEARCH_ENDPOINT = "https://www.googleapis.com/youtube/v3/search"
 

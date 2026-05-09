@@ -6,8 +6,6 @@ import { startMuxIngestSession } from "@/lib/mux-ingest-client"
 import { mux } from "@/lib/mux"
 import { muxSessionManager } from "@/lib/mux-session-manager"
 
-export const runtime = "nodejs"
-
 function getAppBaseUrl() {
   return process.env.BETTER_AUTH_URL ?? process.env.APP_BASE_URL ?? "http://localhost:3000"
 }

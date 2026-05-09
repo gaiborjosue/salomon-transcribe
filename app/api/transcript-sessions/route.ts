@@ -1,13 +1,14 @@
+import { revalidateTag } from "next/cache"
 import { NextResponse } from "next/server"
 
 import { getApiSession } from "@/lib/api-auth"
 import {
   createTranscriptSession,
+  getTranscriptSessionDetailTag,
+  getTranscriptSessionListTag,
   listTranscriptSessions,
 } from "@/lib/transcript-session-store"
 import type { TranscriptSessionSource } from "@/lib/transcript-session-types"
-
-export const runtime = "nodejs"
 
 function isValidSourceType(value: string | undefined): value is TranscriptSessionSource {
   return value === "microphone" || value === "livestream" || value === "mux" || value === "rtmp"
@@ -71,6 +72,12 @@ export async function POST(request: Request) {
     if (!created) {
       return NextResponse.json({ session: null })
     }
+
+    revalidateTag(getTranscriptSessionListTag(session.user.id), "max")
+    revalidateTag(
+      getTranscriptSessionDetailTag(session.user.id, created.summary.id),
+      "max"
+    )
 
     return NextResponse.json({ session: created })
   } catch (error) {

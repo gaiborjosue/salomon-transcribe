@@ -5,8 +5,6 @@ import { warmServerAudioClassifier } from "@/lib/audio-content-classifier"
 import { rtmpSessionManager } from "@/lib/rtmp-session-manager"
 import { startRtmpIngestSession } from "@/lib/rtmp-ingest-client"
 
-export const runtime = "nodejs"
-
 export async function GET(request: Request) {
   const session = await getApiSession(request)
   if (!session) {

@@ -5,8 +5,6 @@ import { MUX_RTMP_PUBLISH_URL, getMuxPlaybackUrl, getPublicMuxPlaybackId } from 
 import { mux } from "@/lib/mux"
 import { muxSessionManager } from "@/lib/mux-session-manager"
 
-export const runtime = "nodejs"
-
 export async function GET(request: Request) {
   const session = await getApiSession(request)
   if (!session) {

@@ -4,8 +4,6 @@ import { getApiSession } from "@/lib/api-auth"
 import { stopRtmpIngestSession } from "@/lib/rtmp-ingest-client"
 import { rtmpSessionManager } from "@/lib/rtmp-session-manager"
 
-export const runtime = "nodejs"
-
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ sessionId: string }> }

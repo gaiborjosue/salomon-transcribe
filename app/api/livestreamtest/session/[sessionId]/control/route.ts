@@ -2,8 +2,6 @@ import { NextResponse } from "next/server"
 
 import { livestreamSessionManager } from "@/lib/livestream-session-manager"
 
-export const runtime = "nodejs"
-
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ sessionId: string }> }

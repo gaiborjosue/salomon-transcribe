@@ -6,8 +6,6 @@ import {
   getQwenLiveWorkerWebSocketUrl,
 } from "@/lib/qwen-live-token"
 
-export const runtime = "nodejs"
-
 export async function POST(request: Request) {
   const authSession = await getApiSession(request)
   if (!authSession) {

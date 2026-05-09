@@ -1,3 +1,5 @@
+import { cacheLife, cacheTag } from "next/cache"
+
 import type { TranscriptEntry } from "@/components/transcriber-ui"
 import prisma from "@/lib/prisma"
 import type {
@@ -9,6 +11,14 @@ import type {
 
 function normalizeWhitespace(value: string) {
   return value.replace(/\s+/g, " ").trim()
+}
+
+export function getTranscriptSessionListTag(ownerUserId: string) {
+  return `transcript-sessions:${ownerUserId}`
+}
+
+export function getTranscriptSessionDetailTag(ownerUserId: string, sessionId: string) {
+  return `transcript-session:${ownerUserId}:${sessionId}`
 }
 
 function defaultSessionTitle({
@@ -68,6 +78,10 @@ function toSummary(session: {
 export async function listTranscriptSessions(
   ownerUserId: string
 ): Promise<TranscriptSessionListPayload> {
+  "use cache"
+  cacheLife("minutes")
+  cacheTag(getTranscriptSessionListTag(ownerUserId))
+
   const sessions = await prisma.transcriptSession.findMany({
     where: { ownerUserId },
     orderBy: { updatedAt: "desc" },
@@ -105,6 +119,13 @@ export async function getTranscriptSessionDetail(args: {
   ownerUserId: string
   sessionId: string
 }): Promise<TranscriptSessionDetail | null> {
+  "use cache"
+  cacheLife("minutes")
+  cacheTag(
+    getTranscriptSessionListTag(args.ownerUserId),
+    getTranscriptSessionDetailTag(args.ownerUserId, args.sessionId)
+  )
+
   const session = await prisma.transcriptSession.findUnique({
     where: { id: args.sessionId },
     include: {

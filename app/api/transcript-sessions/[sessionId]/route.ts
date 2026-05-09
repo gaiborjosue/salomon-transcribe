@@ -1,13 +1,14 @@
+import { revalidateTag } from "next/cache"
 import { NextResponse } from "next/server"
 
 import { getApiSession } from "@/lib/api-auth"
 import {
   deleteTranscriptSession,
   getTranscriptSessionDetail,
+  getTranscriptSessionDetailTag,
+  getTranscriptSessionListTag,
   updateTranscriptSession,
 } from "@/lib/transcript-session-store"
-
-export const runtime = "nodejs"
 
 export async function GET(
   request: Request,
@@ -57,6 +58,9 @@ export async function PATCH(
       return NextResponse.json({ error: "Session not found." }, { status: 404 })
     }
 
+    revalidateTag(getTranscriptSessionListTag(session.user.id), "max")
+    revalidateTag(getTranscriptSessionDetailTag(session.user.id, sessionId), "max")
+
     return NextResponse.json({ session: updated })
   } catch (error) {
     return NextResponse.json(
@@ -89,6 +93,9 @@ export async function DELETE(
   if (!deleted) {
     return NextResponse.json({ error: "Session not found." }, { status: 404 })
   }
+
+  revalidateTag(getTranscriptSessionListTag(session.user.id), "max")
+  revalidateTag(getTranscriptSessionDetailTag(session.user.id, sessionId), "max")
 
   return NextResponse.json({ ok: true })
 }

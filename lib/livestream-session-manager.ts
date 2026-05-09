@@ -40,24 +40,12 @@ const QWEN_LIVESTREAM_SESSION_ROTATE_AFTER_MS = Number(
     process.env.QWEN_MIC_SESSION_ROTATE_AFTER_MS ??
     String(110 * 60 * 1000)
 )
-const QWEN_LIVESTREAM_VAD_THRESHOLD = Number(
-  process.env.QWEN_LIVESTREAM_VAD_THRESHOLD ??
-    process.env.QWEN_MIC_VAD_THRESHOLD ??
-    "0.1"
-)
-const QWEN_LIVESTREAM_VAD_SILENCE_MS = Number(
-  process.env.QWEN_LIVESTREAM_VAD_SILENCE_MS ??
-    process.env.QWEN_MIC_VAD_SILENCE_MS ??
-    "1100"
-)
-const QWEN_LIVESTREAM_VAD_PREFIX_PADDING_MS = Number(
-  process.env.QWEN_LIVESTREAM_VAD_PREFIX_PADDING_MS ??
-    process.env.QWEN_MIC_VAD_PREFIX_PADDING_MS ??
-    "400"
-)
 const QWEN_UPSTREAM_GRACEFUL_CLOSE_TIMEOUT_MS = Number(
   process.env.QWEN_UPSTREAM_GRACEFUL_CLOSE_TIMEOUT_MS ?? "2500"
 )
+const YOUTUBE_AUDIO_FILTER =
+  process.env.YOUTUBE_QWEN_AUDIO_FILTER?.trim() ||
+  "dynaudnorm=f=250:g=9:p=0.9:m=8"
 
 function nextQwenEventId() {
   return `event_${randomUUID().replace(/-/gu, "")}`
@@ -411,12 +399,6 @@ class LivestreamSession {
                 language: "es",
               },
               modalities: ["text"],
-              turn_detection: {
-                prefix_padding_ms: QWEN_LIVESTREAM_VAD_PREFIX_PADDING_MS,
-                silence_duration_ms: QWEN_LIVESTREAM_VAD_SILENCE_MS,
-                threshold: QWEN_LIVESTREAM_VAD_THRESHOLD,
-                type: "server_vad",
-              },
               translation: {
                 language: "en",
               },
@@ -649,6 +631,8 @@ class LivestreamSession {
         "-i",
         directAudioUrl,
         "-vn",
+        "-af",
+        YOUTUBE_AUDIO_FILTER,
         "-ac",
         "1",
         "-ar",

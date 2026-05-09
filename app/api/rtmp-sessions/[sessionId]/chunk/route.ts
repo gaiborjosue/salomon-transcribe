@@ -4,8 +4,6 @@ import { assessGroqTranslation } from "@/lib/groq-translation"
 import { processAudioTranslation } from "@/lib/process-audio-translation"
 import { rtmpSessionManager } from "@/lib/rtmp-session-manager"
 
-export const runtime = "nodejs"
-
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ sessionId: string }> }

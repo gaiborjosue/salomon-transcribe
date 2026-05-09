@@ -2,8 +2,6 @@ import { groq } from "@ai-sdk/groq"
 import { generateText } from "ai"
 import { NextResponse } from "next/server"
 
-export const runtime = "nodejs"
-
 const TRANSLATION_MODEL = "llama-3.1-8b-instant"
 
 export async function POST(request: Request) {

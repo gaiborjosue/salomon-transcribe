@@ -4,8 +4,6 @@ import { assessGroqTranslation } from "@/lib/groq-translation"
 import { muxSessionManager } from "@/lib/mux-session-manager"
 import { processAudioTranslation } from "@/lib/process-audio-translation"
 
-export const runtime = "nodejs"
-
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ liveStreamId: string }> }

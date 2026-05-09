@@ -1,7 +1,5 @@
 import { livestreamSessionManager } from "@/lib/livestream-session-manager"
 
-export const runtime = "nodejs"
-
 function serializeSseEvent(event: string, data: unknown) {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`
 }

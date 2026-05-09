@@ -3,8 +3,6 @@ import { NextResponse } from "next/server"
 import { rtmpSessionManager } from "@/lib/rtmp-session-manager"
 import type { RtmpSessionStatus } from "@/lib/rtmp-types"
 
-export const runtime = "nodejs"
-
 function normalizeStatus(input: string | undefined): RtmpSessionStatus | null {
   switch (input) {
     case "connecting":

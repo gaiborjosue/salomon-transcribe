@@ -3,8 +3,6 @@ import { NextResponse } from "next/server"
 import type { MuxPerfTrace } from "@/lib/mux-session-types"
 import { muxSessionManager } from "@/lib/mux-session-manager"
 
-export const runtime = "nodejs"
-
 function isMuxPerfTrace(value: unknown): value is MuxPerfTrace {
   if (!value || typeof value !== "object") {
     return false

@@ -1,21 +1,6 @@
 import { NextResponse } from "next/server"
 
 import { muxSessionManager } from "@/lib/mux-session-manager"
-import type { MuxProcessingStatus } from "@/lib/mux-session-types"
-
-function normalizeStatus(input: string | undefined): MuxProcessingStatus | null {
-  switch (input) {
-    case "connecting":
-    case "connected":
-    case "paused":
-    case "transcribing":
-    case "disconnected":
-    case "error":
-      return input
-    default:
-      return null
-  }
-}
 
 export async function POST(
   request: Request,
@@ -30,22 +15,21 @@ export async function POST(
 
   try {
     const payload = (await request.json().catch(() => null)) as
-      | { error?: string; status?: string }
+      | { lowConfidence?: boolean; text?: string }
       | null
-    const status = normalizeStatus(payload?.status)
 
-    if (!status) {
-      return NextResponse.json({ error: "Invalid status." }, { status: 400 })
+    if (typeof payload?.text !== "string" || !payload.text.trim()) {
+      return NextResponse.json({ error: "Missing transcript text." }, { status: 400 })
     }
 
-    const updated = await muxSessionManager.updateStatus({
-      error: typeof payload?.error === "string" ? payload.error : undefined,
+    const appended = await muxSessionManager.appendEntry({
       ingestToken,
+      lowConfidence: payload.lowConfidence === true,
       sessionId: liveStreamId,
-      status,
+      text: payload.text,
     })
 
-    if (!updated) {
+    if (!appended) {
       return NextResponse.json({ error: "Mux session not found." }, { status: 404 })
     }
 
@@ -57,13 +41,9 @@ export async function POST(
       ok: true,
     })
   } catch (error) {
+    console.error("[mux-live-streams] entry append failed", error)
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unable to update the Mux session status.",
-      },
+      { error: "Unable to append the Mux transcript entry." },
       { status: 500 }
     )
   }

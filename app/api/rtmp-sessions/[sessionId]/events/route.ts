@@ -1,8 +1,6 @@
 import { getApiSession } from "@/lib/api-auth"
 import { rtmpSessionManager } from "@/lib/rtmp-session-manager"
 
-export const runtime = "nodejs"
-
 function serializeSseEvent(event: string, data: unknown) {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`
 }

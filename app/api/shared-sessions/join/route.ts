@@ -4,8 +4,6 @@ import { sharedSessionManager } from "@/lib/shared-session-manager"
 import { muxSessionManager } from "@/lib/mux-session-manager"
 import { normalizeShareCode } from "@/lib/share-code-utils"
 
-export const runtime = "nodejs"
-
 export async function POST(request: Request) {
   try {
     const payload = (await request.json()) as { code?: string }

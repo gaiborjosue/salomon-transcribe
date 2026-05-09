@@ -3,8 +3,6 @@ import { NextResponse } from "next/server"
 import { getApiSession } from "@/lib/api-auth"
 import { rtmpSessionManager } from "@/lib/rtmp-session-manager"
 
-export const runtime = "nodejs"
-
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ sessionId: string }> }

@@ -1,8 +1,6 @@
 import { muxSessionManager } from "@/lib/mux-session-manager"
 import { getApiSession } from "@/lib/api-auth"
 
-export const runtime = "nodejs"
-
 function serializeSseEvent(event: string, data: unknown) {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`
 }
