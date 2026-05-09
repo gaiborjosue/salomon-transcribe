@@ -9,6 +9,16 @@
     "lint": "eslint .",
     "start": "next start"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/engines",
+      "core-js",
+      "esbuild",
+      "prisma",
+      "protobufjs",
+      "sharp"
+    ]
+  },
   "dependencies": {
     "@ai-sdk/groq": "^3.0.31",
     "@elevenlabs/react": "latest",
