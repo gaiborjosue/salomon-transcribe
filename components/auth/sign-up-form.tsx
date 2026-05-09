@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 
+import { BloomGlow } from "@/components/auth/bloom-glow"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
@@ -31,10 +32,17 @@ function releaseSignupBalloons() {
   }
 }
 
+const AUTH_TRANSITION_DELAY_MS = 1000
+
+function waitForAuthTransition() {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, AUTH_TRANSITION_DELAY_MS))
+}
+
 export function SignUpForm() {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [isPending, setIsPending] = useState(false)
+  const [isTransitioning, setIsTransitioning] = useState(false)
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -69,10 +77,22 @@ export function SignUpForm() {
     }
 
     releaseSignupBalloons()
-    window.setTimeout(() => {
-      router.replace(`/verify-email?email=${encodeURIComponent(email)}`)
-      router.refresh()
-    }, 900)
+    setIsTransitioning(true)
+    await waitForAuthTransition()
+    router.replace(`/verify-email?email=${encodeURIComponent(email)}`)
+    router.refresh()
+  }
+
+  if (isTransitioning) {
+    return (
+      <div className="flex min-h-[428px] flex-col items-center justify-center gap-4 text-center">
+        <BloomGlow />
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-white/88">Creating your account</p>
+          <p className="text-xs text-white/42">Preparing email verification.</p>
+        </div>
+      </div>
+    )
   }
 
   return (

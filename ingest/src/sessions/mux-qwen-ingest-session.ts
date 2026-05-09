@@ -354,6 +354,12 @@ export class MuxQwenIngestSession {
                 language: "es",
               },
               modalities: ["text"],
+              turn_detection: {
+                prefix_padding_ms: 400,
+                silence_duration_ms: 1100,
+                threshold: 0.1,
+                type: "server_vad",
+              },
               translation: {
                 language: "en",
               },

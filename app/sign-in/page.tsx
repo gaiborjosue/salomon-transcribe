@@ -10,6 +10,10 @@ export default async function SignInPage() {
     headers: await headers(),
   })
 
+  if (session && !session.user.emailVerified) {
+    redirect(`/verify-email?email=${encodeURIComponent(session.user.email)}`)
+  }
+
   if (session) {
     redirect("/")
   }
