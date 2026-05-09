@@ -5,7 +5,12 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { toast } from "sonner"
 
 import { TranscriptHistorySidebar } from "@/components/transcript-history-sidebar"
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+  useSidebar,
+} from "@/components/ui/sidebar"
 import { getTranscriptSessionPath } from "@/lib/transcript-session-path"
 import type {
   TranscriptSessionListPayload,
@@ -32,6 +37,25 @@ function upsertSummary(
     active: [summary, ...nextActive].sort((a, b) => b.updatedAt - a.updatedAt),
     archived: nextArchived,
   }
+}
+
+function HomeSidebarTrigger() {
+  const { isMobile, open } = useSidebar()
+
+  return (
+    <div
+      className="pointer-events-none fixed top-4 left-4 z-50 md:transition-[left] md:duration-200 md:ease-linear"
+      style={
+        isMobile
+          ? undefined
+          : {
+              left: open ? "calc(var(--sidebar-width) + 1rem)" : "1rem",
+            }
+      }
+    >
+      <SidebarTrigger className="pointer-events-auto size-10 rounded-full border border-white/10 bg-black/30 text-white/72 backdrop-blur-sm hover:bg-white/8 hover:text-white" />
+    </div>
+  )
 }
 
 export function AuthenticatedHomeShell({
@@ -204,14 +228,7 @@ export function AuthenticatedHomeShell({
         />
 
         <SidebarInset className="bg-[#1f1f1f]">
-          <div
-            className="pointer-events-none fixed top-4 z-50 transition-[left] duration-200 ease-linear"
-            style={{
-              left: isSidebarOpen ? "calc(var(--sidebar-width) + 1rem)" : "1rem",
-            }}
-          >
-            <SidebarTrigger className="pointer-events-auto size-10 rounded-full border border-white/10 bg-black/30 text-white/72 backdrop-blur-sm hover:bg-white/8 hover:text-white" />
-          </div>
+          <HomeSidebarTrigger />
 
           <div className="min-h-[100dvh]">{children}</div>
         </SidebarInset>

@@ -1,5 +1,6 @@
 "use client"
 
+import { balloons, textBalloons } from "balloons-js"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
@@ -14,6 +15,21 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { signUp } from "@/lib/auth-client"
+
+function releaseSignupBalloons() {
+  try {
+    void balloons().catch(() => {})
+    textBalloons([
+      {
+        text: "🎉🔥✨",
+        fontSize: 120,
+        color: "#000000",
+      },
+    ])
+  } catch {
+    // Signup should never fail because the celebration animation failed.
+  }
+}
 
 export function SignUpForm() {
   const router = useRouter()
@@ -46,15 +62,17 @@ export function SignUpForm() {
       )}`,
     })
 
-    setIsPending(false)
-
     if (result.error) {
+      setIsPending(false)
       setError(result.error.message || "Unable to create your account.")
       return
     }
 
-    router.replace(`/verify-email?email=${encodeURIComponent(email)}`)
-    router.refresh()
+    releaseSignupBalloons()
+    window.setTimeout(() => {
+      router.replace(`/verify-email?email=${encodeURIComponent(email)}`)
+      router.refresh()
+    }, 900)
   }
 
   return (

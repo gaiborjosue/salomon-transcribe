@@ -1,5 +1,6 @@
 import Link from "next/link"
 
+import { RippleShader } from "@/components/ripple-shader"
 import {
   Card,
   CardContent,
@@ -23,8 +24,24 @@ export function AuthShell({
   title: string
 }) {
   return (
-    <main className="min-h-screen bg-[#1f1f1f] text-white">
-      <div className="mx-auto flex min-h-screen w-full max-w-md items-center justify-center px-5 py-10">
+    <main className="relative min-h-screen overflow-hidden bg-black text-white">
+      <div className="absolute inset-0 z-0">
+        <RippleShader
+          pixelSize={0.5}
+          speed={1.2}
+          waveFrequency={2}
+          threshold={0.9}
+          grainAmount={0.2}
+          gridOpacity={0.4}
+          cursorRadius={1}
+          cursorPush={0.8}
+          color="#ffffff"
+          className="absolute inset-0 h-full w-full"
+        />
+        <div className="absolute inset-0 bg-black/82" />
+      </div>
+
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-md items-center justify-center px-5 py-10">
         <Card
           className={cn(
             "w-full border-white/10 bg-black/30 text-white shadow-none backdrop-blur-sm",

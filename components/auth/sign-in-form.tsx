@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useState } from "react"
+import { toast } from "sonner"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -60,6 +61,7 @@ export function SignInForm() {
       return
     }
 
+    toast.success("Welcome back.")
     router.replace("/")
     router.refresh()
   }
@@ -82,11 +84,14 @@ export function SignInForm() {
     setIsResending(false)
 
     if (result.error) {
-      setError(result.error.message || "Unable to sign in.")
+      const message = result.error.message || "Unable to send verification email."
+      setError(message)
+      toast.error(message)
       return
     }
 
     setVerificationNotice("Verification email sent. Check your inbox.")
+    toast.success("Verification email sent. Check your inbox.")
   }
 
   return (

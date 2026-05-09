@@ -4,6 +4,7 @@ import { headers } from "next/headers"
 import { AuthenticatedHomeShell } from "@/components/auth/authenticated-home-shell"
 import LiveTranslationHome from "@/components/live-translation-home"
 import { Button } from "@/components/ui/button"
+import HeroGeometric from "@/components/ui/hero-geometric"
 import { auth } from "@/lib/auth"
 import { listTranscriptSessions } from "@/lib/transcript-session-store"
 
@@ -14,37 +15,20 @@ export default async function HomePage() {
 
   if (!session) {
     return (
-      <main className="min-h-screen bg-[#1f1f1f] text-white">
-        <div className="mx-auto flex min-h-screen w-full max-w-md items-center justify-center px-5 py-10">
-          <div className="w-full rounded-[28px] border border-white/10 bg-black/30 p-8 text-center shadow-none backdrop-blur-sm">
-            <div className="space-y-4">
-              <div className="mx-auto w-fit rounded-full border border-white/10 px-3 py-1 text-[11px] font-medium tracking-[0.2em] uppercase text-white/45">
-                Salomon
-              </div>
-              <div className="space-y-2">
-                <h1 className="text-3xl font-semibold tracking-tight text-white/92">
-                  Live translation for church services
-                </h1>
-                <p className="text-sm leading-6 text-white/45">
-                  Sign in to run live microphone or livestream translation with shared
-                  sessions, scripture highlights, and sermon-first tuning.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-8 flex flex-col gap-3">
-              <Button asChild className="h-11 rounded-full bg-white text-black hover:bg-white/90">
-                <Link href="/sign-in">Sign in</Link>
-              </Button>
-              <Button
-                asChild
-                variant="ghost"
-                className="h-11 rounded-full border border-white/10 text-white/78 hover:bg-white/8 hover:text-white"
-              >
-                <Link href="/sign-up">Create account</Link>
-              </Button>
-            </div>
-          </div>
+      <main className="relative min-h-screen overflow-hidden bg-white">
+        <HeroGeometric
+          title1="Salomon"
+          title2="Transcribe"
+          description="Start transcribing and translating live services in real time."
+        />
+        <div className="pointer-events-none absolute inset-x-0 top-[62%] z-20 flex justify-center px-6 sm:top-[64%]">
+          <Button
+            asChild
+            size="lg"
+            className="pointer-events-auto h-12 rounded-full bg-black px-7 text-white shadow-[0_18px_50px_rgba(0,0,0,0.18)] hover:bg-black/88"
+          >
+            <Link href="/sign-up">Get Started</Link>
+          </Button>
         </div>
       </main>
     )
