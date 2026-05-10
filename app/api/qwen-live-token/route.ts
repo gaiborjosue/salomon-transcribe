@@ -32,8 +32,10 @@ export async function POST(request: Request) {
       userId: authSession.user.id,
     })
 
+    const workerUrl = getQwenLiveWorkerWebSocketUrl()
+
     return NextResponse.json({
-      wsUrl: `${getQwenLiveWorkerWebSocketUrl()}/mic-realtime?token=${encodeURIComponent(token)}`,
+      wsUrl: `${workerUrl}/mic-realtime?token=${encodeURIComponent(token)}`,
     })
   } catch (error) {
     console.error("[qwen-live-token] issue failed", error)

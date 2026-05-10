@@ -98,7 +98,21 @@ export function verifyQwenLiveToken(token: string) {
 export function getQwenLiveWorkerWebSocketUrl() {
   const explicit = process.env.QWEN_LIVE_WORKER_WS_URL?.trim()
   if (explicit) {
-    return explicit.replace(/\/+$/u, "")
+    const value = explicit.replace(/\/+$/u, "")
+
+    if (value.startsWith("https://")) {
+      return `wss://${value.slice("https://".length)}`
+    }
+
+    if (value.startsWith("http://")) {
+      return `ws://${value.slice("http://".length)}`
+    }
+
+    return value
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("QWEN_LIVE_WORKER_WS_URL is not configured.")
   }
 
   return "ws://127.0.0.1:4100"

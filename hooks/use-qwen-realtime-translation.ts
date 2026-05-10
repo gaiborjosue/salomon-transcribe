@@ -291,6 +291,15 @@ export function useQwenRealtimeTranslation(
           )
         }
 
+        if (
+          window.location.protocol === "https:" &&
+          tokenPayload.wsUrl.startsWith("ws://")
+        ) {
+          throw new Error(
+            "Live mic is configured with an insecure WebSocket URL. Use a wss:// ingest URL for production."
+          )
+        }
+
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: {
             autoGainControl: options.microphone?.autoGainControl ?? true,
