@@ -50,7 +50,9 @@ export function SignInForm() {
     const result = await signIn.email({
       email,
       password,
-      callbackURL: `${window.location.origin}/`,
+      callbackURL: `${window.location.origin}/verify-email?verified=1&email=${encodeURIComponent(
+        email
+      )}`,
     })
 
     setIsPending(false)

@@ -15,10 +15,12 @@ import {
   Plus,
   RadioTower,
   Search,
+  Settings,
   Trash2,
   Type,
   Waves,
 } from "lucide-react"
+import { toast } from "sonner"
 
 import {
   AlertDialog,
@@ -142,6 +144,9 @@ export function TranscriptHistorySidebar({
   const [archivedOpen, setArchivedOpen] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
+  const [accountSettingsOpen, setAccountSettingsOpen] = useState(false)
+  const [confirmAccountDeletionOpen, setConfirmAccountDeletionOpen] = useState(false)
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false)
   const [isSigningOut, setIsSigningOut] = useState(false)
 
   const filteredSessions = useMemo(() => {
@@ -161,6 +166,39 @@ export function TranscriptHistorySidebar({
     }
   }, [filter, sessions])
   const hasArchivedSessions = filteredSessions.archived.length > 0
+
+  async function handleDeleteAccount() {
+    setIsDeletingAccount(true)
+
+    try {
+      const response = await fetch("/api/account", {
+        method: "DELETE",
+      })
+      const payload = (await response.json().catch(() => null)) as
+        | { error?: string }
+        | null
+
+      if (!response.ok) {
+        throw new Error(
+          typeof payload?.error === "string"
+            ? payload.error
+            : "Unable to delete your account."
+        )
+      }
+
+      await signOut().catch(() => {})
+      setConfirmAccountDeletionOpen(false)
+      setAccountSettingsOpen(false)
+      router.replace("/sign-up")
+      router.refresh()
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Unable to delete your account."
+      )
+    } finally {
+      setIsDeletingAccount(false)
+    }
+  }
 
   useEffect(() => {
     if (
@@ -439,6 +477,16 @@ export function TranscriptHistorySidebar({
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
                   <DropdownMenuItem
+                    onSelect={(event) => {
+                      event.preventDefault()
+                      setProfileOpen(false)
+                      setAccountSettingsOpen(true)
+                    }}
+                  >
+                    <Settings />
+                    Advanced settings
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
                     onClick={() => {
                       void (async () => {
                         setIsSigningOut(true)
@@ -462,6 +510,77 @@ export function TranscriptHistorySidebar({
           </div>
         </SidebarFooter>
       </Sidebar>
+
+      <AlertDialog
+        open={accountSettingsOpen}
+        onOpenChange={(open) => {
+          if (!open && !isDeletingAccount) {
+            setAccountSettingsOpen(false)
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Advanced settings</AlertDialogTitle>
+            <AlertDialogDescription>
+              Manage account-level actions for {userLabel}.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="rounded-lg border border-destructive/25 bg-destructive/5 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-foreground">Delete account</p>
+                <p className="text-sm text-muted-foreground">
+                  Permanently remove your account and saved transcript history.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={isDeletingAccount}
+                onClick={() => setConfirmAccountDeletionOpen(true)}
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingAccount}>Close</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={confirmAccountDeletionOpen}
+        onOpenChange={(open) => {
+          if (!open && !isDeletingAccount) {
+            setConfirmAccountDeletionOpen(false)
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete your account?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes your Salomon account, active sessions, and saved
+              transcript history. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingAccount}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isDeletingAccount}
+              onClick={(event) => {
+                event.preventDefault()
+                void handleDeleteAccount()
+              }}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              {isDeletingAccount ? "Deleting..." : "Delete account"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog
         open={deleteCandidate !== null}

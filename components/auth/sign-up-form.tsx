@@ -65,7 +65,7 @@ export function SignUpForm() {
       name,
       email,
       password,
-      callbackURL: `${window.location.origin}/sign-in?verified=1&email=${encodeURIComponent(
+      callbackURL: `${window.location.origin}/verify-email?verified=1&email=${encodeURIComponent(
         email
       )}`,
     })

@@ -23,11 +23,14 @@ export function VerifyEmailView() {
   const searchParams = useSearchParams()
   const token = searchParams.get("token")
   const initialEmail = searchParams.get("email") ?? ""
+  const verified = searchParams.get("verified") === "1"
 
   const [email, setEmail] = useState(initialEmail)
   const [error, setError] = useState<string | null>(null)
   const [isResending, setIsResending] = useState(false)
-  const [state, setState] = useState<VerificationState>(token ? "pending" : "idle")
+  const [state, setState] = useState<VerificationState>(
+    verified ? "success" : token ? "pending" : "idle"
+  )
 
   const title = useMemo(() => {
     if (state === "pending") return "Verifying your email"
@@ -62,7 +65,9 @@ export function VerifyEmailView() {
       }
 
       setState("success")
-      router.replace("/sign-in?verified=1")
+      router.replace(
+        `/verify-email?verified=1${email ? `&email=${encodeURIComponent(email)}` : ""}`
+      )
       router.refresh()
     }
 
@@ -71,7 +76,7 @@ export function VerifyEmailView() {
     return () => {
       cancelled = true
     }
-  }, [router, token, verifyEmail])
+  }, [email, router, token, verifyEmail])
 
   async function handleResend(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -80,7 +85,7 @@ export function VerifyEmailView() {
 
     const result = await sendVerificationEmail({
       email,
-      callbackURL: `${window.location.origin}/sign-in?verified=1&email=${encodeURIComponent(
+      callbackURL: `${window.location.origin}/verify-email?verified=1&email=${encodeURIComponent(
         email
       )}`,
     })
@@ -107,6 +112,34 @@ export function VerifyEmailView() {
         <FieldDescription className="text-center text-white/40">
           This should only take a moment.
         </FieldDescription>
+      </div>
+    )
+  }
+
+  if (state === "success") {
+    return (
+      <div className="space-y-5">
+        <div className="space-y-2">
+          <h2 className="text-xl font-semibold tracking-tight text-white/92">
+            Email verified
+          </h2>
+          <p className="text-sm leading-6 text-white/45">
+            Your email is confirmed. Sign in to start using Salomon.
+          </p>
+        </div>
+
+        <Button
+          asChild
+          className="h-11 w-full rounded-full bg-white text-black hover:bg-white/90"
+        >
+          <Link
+            href={`/sign-in?verified=1${
+              email ? `&email=${encodeURIComponent(email)}` : ""
+            }`}
+          >
+            Continue to sign in
+          </Link>
+        </Button>
       </div>
     )
   }
