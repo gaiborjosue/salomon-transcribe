@@ -3,12 +3,42 @@ import { Analytics } from '@vercel/analytics/next'
 import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
 
+const siteUrl = new URL(
+  process.env.NEXT_PUBLIC_SITE_URL ?? "https://salomon-gamma.vercel.app"
+)
+
 export const metadata: Metadata = {
+  metadataBase: siteUrl,
   title: {
     default: "Salomon",
     template: "%s | Salomon",
   },
   description: "Live translation for church services across microphone and livestream inputs.",
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    title: "Salomon",
+    description: "Live transcription and translation for church services.",
+    url: "/",
+    siteName: "Salomon",
+    images: [
+      {
+        url: "/salomonog.png",
+        width: 1200,
+        height: 630,
+        alt: "Salomon live transcription and translation",
+      },
+    ],
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Salomon",
+    description: "Live transcription and translation for church services.",
+    images: ["/salomonog.png"],
+  },
   icons: {
     icon: [
       {
