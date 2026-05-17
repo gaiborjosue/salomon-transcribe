@@ -9,9 +9,8 @@ import {
 import prisma from "@/lib/prisma"
 
 const authBaseUrl = process.env.BETTER_AUTH_URL ?? "http://localhost:3000"
-const authSecret =
-  process.env.BETTER_AUTH_SECRET ??
-  "replace-this-dev-secret-before-production-use"
+const authSecret = process.env.BETTER_AUTH_SECRET
+if (!authSecret) throw new Error("BETTER_AUTH_SECRET is not configured.")
 
 export const auth = betterAuth({
   appName: "Salomon",

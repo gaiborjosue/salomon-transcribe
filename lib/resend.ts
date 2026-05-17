@@ -1,7 +1,6 @@
 import { Resend } from "resend"
 
-const defaultFrom =
-  process.env.RESEND_FROM ?? "Salomon <noreply@salomon.edwardgaibor.me>"
+const defaultFrom = process.env.RESEND_FROM
 
 let resendClient: Resend | null = null
 

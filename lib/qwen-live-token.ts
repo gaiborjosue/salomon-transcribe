@@ -10,11 +10,15 @@ interface QwenLiveTokenPayload {
 const DEFAULT_TTL_SECONDS = 60 * 10
 
 function getSigningSecret() {
-  return (
+  const secret =
     process.env.QWEN_LIVE_SESSION_SECRET?.trim() ||
-    process.env.BETTER_AUTH_SECRET?.trim() ||
-    "replace-this-dev-secret-before-production-use"
-  )
+    process.env.BETTER_AUTH_SECRET?.trim()
+  if (!secret) {
+    throw new Error(
+      "QWEN_LIVE_SESSION_SECRET or BETTER_AUTH_SECRET is not configured."
+    )
+  }
+  return secret
 }
 
 function toBase64Url(value: string | Buffer) {
