@@ -28,6 +28,10 @@ export async function sendTransactionalEmail({
   text: string
   to: string
 }) {
+  if (!defaultFrom) {
+    throw new Error("RESEND_FROM is not configured.")
+  }
+
   const resend = getResendClient()
   const { data, error } = await resend.emails.send(
     {
