@@ -14,7 +14,7 @@ const globalForPrisma = globalThis as typeof globalThis & {
   prismaVersion?: number
 }
 
-const PRISMA_CLIENT_VERSION = 5
+const PRISMA_CLIENT_VERSION = 6
 
 const shouldCreatePrismaClient =
   !globalForPrisma.prisma ||
