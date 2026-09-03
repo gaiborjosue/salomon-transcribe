@@ -148,8 +148,23 @@ async function runCommand(command: string, args: string[]): Promise<string> {
 
 async function resolveLivestreamMetadata(streamUrl: string) {
   const [titleOutput, directUrlOutput] = await Promise.all([
-    runCommand("yt-dlp", ["--no-playlist", "--print", "%(title)s", streamUrl]),
-    runCommand("yt-dlp", ["--no-playlist", "-f", "bestaudio/best", "-g", streamUrl]),
+    runCommand("yt-dlp", [
+      "--js-runtimes",
+      "node",
+      "--no-playlist",
+      "--print",
+      "%(title)s",
+      streamUrl,
+    ]),
+    runCommand("yt-dlp", [
+      "--js-runtimes",
+      "node",
+      "--no-playlist",
+      "-f",
+      "bestaudio/best",
+      "-g",
+      streamUrl,
+    ]),
   ])
 
   return {
