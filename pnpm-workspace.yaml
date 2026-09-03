@@ -1,10 +1,10 @@
 packages:
   - .
 
-onlyBuiltDependencies:
-  - "@prisma/engines"
-  - core-js
-  - esbuild
-  - prisma
-  - protobufjs
-  - sharp
+allowBuilds:
+  '@prisma/engines': true
+  core-js: true
+  esbuild: true
+  prisma: true
+  protobufjs: true
+  sharp: true
