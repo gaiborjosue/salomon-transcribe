@@ -13,6 +13,8 @@ import {
   type SessionKind,
 } from "@/ingest/src/types"
 import { readJsonBody } from "@/ingest/src/utils/http"
+import { livestreamSessionManager } from "@/lib/livestream-session-manager"
+import type { LivestreamMode } from "@/lib/livestream-types"
 import { verifyQwenLiveToken } from "@/lib/qwen-live-token"
 import { WebSocketServer } from "ws"
 
@@ -20,6 +22,39 @@ const sessions = new Map<string, ManagedSession>()
 
 function getSessionMapKey(kind: SessionKind, sessionId: string) {
   return `${kind}:${sessionId}`
+}
+
+function isYouTubeUrl(value: string) {
+  try {
+    const url = new URL(value)
+    const hostname = url.hostname.toLowerCase().replace(/^www\./u, "")
+    return (
+      (url.protocol === "https:" || url.protocol === "http:") &&
+      (hostname === "youtube.com" ||
+        hostname.endsWith(".youtube.com") ||
+        hostname === "youtu.be")
+    )
+  } catch {
+    return false
+  }
+}
+
+function isYouTubeControlAuthorized(request: import("node:http").IncomingMessage) {
+  const expectedSecret = process.env.INGEST_CONTROL_SECRET?.trim()
+  if (!expectedSecret) {
+    return process.env.NODE_ENV !== "production"
+  }
+
+  return request.headers["x-salomon-ingest-secret"] === expectedSecret
+}
+
+function writeJson(
+  response: import("node:http").ServerResponse,
+  status: number,
+  payload: unknown
+) {
+  response.writeHead(status, { "Content-Type": "application/json" })
+  response.end(JSON.stringify(payload))
 }
 
 async function createOrReplaceSession(
@@ -62,6 +97,144 @@ const server = createServer(async (incomingRequest, outgoingResponse) => {
   if (method === "GET" && url.pathname === "/health") {
     outgoingResponse.writeHead(200, { "Content-Type": "application/json" })
     outgoingResponse.end(JSON.stringify({ ok: true }))
+    return
+  }
+
+  if (method === "POST" && url.pathname === "/youtube-sessions") {
+    if (!isYouTubeControlAuthorized(incomingRequest)) {
+      writeJson(outgoingResponse, 401, {
+        error: "Livestream ingest control request is unauthorized.",
+      })
+      return
+    }
+
+    const body = (await readJsonBody(incomingRequest)) as
+      | { mode?: LivestreamMode; streamUrl?: string }
+      | null
+    const streamUrl = typeof body?.streamUrl === "string" ? body.streamUrl.trim() : ""
+    const mode = body?.mode === "sermon" ? "sermon" : "conversation"
+
+    if (!streamUrl || !isYouTubeUrl(streamUrl)) {
+      writeJson(outgoingResponse, 400, {
+        error: "A valid YouTube livestream URL is required.",
+      })
+      return
+    }
+
+    try {
+      const session = await livestreamSessionManager.createSession({ mode, streamUrl })
+      writeJson(outgoingResponse, 200, { sessionId: session.getSnapshot().id })
+    } catch (error) {
+      writeJson(outgoingResponse, 500, {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unable to start the YouTube livestream session.",
+      })
+    }
+    return
+  }
+
+  const youtubeEventsMatch = url.pathname.match(
+    /^\/youtube-sessions\/([^/]+)\/events$/u
+  )
+  if (method === "GET" && youtubeEventsMatch) {
+    const sessionId = decodeURIComponent(youtubeEventsMatch[1])
+    const session = livestreamSessionManager.getSession(sessionId)
+    if (!session) {
+      writeJson(outgoingResponse, 404, { error: "Livestream session not found." })
+      return
+    }
+
+    outgoingResponse.writeHead(200, {
+      "Access-Control-Allow-Origin": "*",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "Content-Type": "text/event-stream",
+    })
+    outgoingResponse.flushHeaders()
+
+    const send = (eventName: string, payload: unknown) => {
+      outgoingResponse.write(
+        `event: ${eventName}\ndata: ${JSON.stringify(payload)}\n\n`
+      )
+    }
+    const unsubscribe = session.subscribe((event) => {
+      if (event.type === "snapshot") {
+        send("snapshot", event.snapshot)
+        return
+      }
+
+      if (event.type === "partial") {
+        send("partial", { text: event.text })
+        return
+      }
+
+      if (event.type === "segment") {
+        send("segment", event.entry)
+        return
+      }
+
+      send("status", {
+        error: event.error,
+        sourceTitle: event.sourceTitle,
+        status: event.status,
+      })
+    })
+    const keepAlive = setInterval(() => {
+      outgoingResponse.write(": keepalive\n\n")
+    }, 15_000)
+    const cleanup = () => {
+      clearInterval(keepAlive)
+      unsubscribe()
+    }
+    outgoingResponse.on("close", cleanup)
+    return
+  }
+
+  const youtubeControlMatch = url.pathname.match(
+    /^\/youtube-sessions\/([^/]+)\/control$/u
+  )
+  if (method === "POST" && youtubeControlMatch) {
+    if (!isYouTubeControlAuthorized(incomingRequest)) {
+      writeJson(outgoingResponse, 401, {
+        error: "Livestream ingest control request is unauthorized.",
+      })
+      return
+    }
+
+    const sessionId = decodeURIComponent(youtubeControlMatch[1])
+    const session = livestreamSessionManager.getSession(sessionId)
+    if (!session) {
+      writeJson(outgoingResponse, 404, { error: "Livestream session not found." })
+      return
+    }
+
+    const body = (await readJsonBody(incomingRequest)) as
+      | { action?: "pause" | "resume" | "stop" }
+      | null
+
+    try {
+      if (body?.action === "pause") {
+        await session.pause()
+      } else if (body?.action === "resume") {
+        await session.resume()
+      } else if (body?.action === "stop") {
+        await livestreamSessionManager.stopSession(sessionId)
+      } else {
+        writeJson(outgoingResponse, 400, { error: "Unsupported action." })
+        return
+      }
+
+      writeJson(outgoingResponse, 200, { ok: true })
+    } catch (error) {
+      writeJson(outgoingResponse, 500, {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unable to update the livestream session.",
+      })
+    }
     return
   }
 

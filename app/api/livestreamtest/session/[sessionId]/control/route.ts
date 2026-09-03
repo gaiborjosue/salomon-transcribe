@@ -1,35 +1,30 @@
 import { NextResponse } from "next/server"
 
-import { livestreamSessionManager } from "@/lib/livestream-session-manager"
+import { getApiSession } from "@/lib/api-auth"
+import { updateLivestreamIngestSession } from "@/lib/livestream-ingest-client"
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
-  const { sessionId } = await params
-  const session = livestreamSessionManager.getSession(sessionId)
-
+  const session = await getApiSession(request)
   if (!session) {
-    return NextResponse.json({ error: "Livestream session not found." }, { status: 404 })
+    return NextResponse.json({ error: "Unauthorized." }, { status: 401 })
   }
+
+  const { sessionId } = await params
 
   try {
     const payload = (await request.json()) as {
       action?: "pause" | "resume" | "stop"
     }
 
-    if (payload.action === "pause") {
-      await session.pause()
-      return NextResponse.json({ ok: true })
-    }
-
-    if (payload.action === "resume") {
-      await session.resume()
-      return NextResponse.json({ ok: true })
-    }
-
-    if (payload.action === "stop") {
-      await livestreamSessionManager.stopSession(sessionId)
+    if (
+      payload.action === "pause" ||
+      payload.action === "resume" ||
+      payload.action === "stop"
+    ) {
+      await updateLivestreamIngestSession(sessionId, payload.action)
       return NextResponse.json({ ok: true })
     }
 

@@ -311,7 +311,7 @@ export default function LivestreamTestPage() {
                     <p className="w-full text-sm text-red-400">{recordingError}</p>
                   ) : (
                     <p className="w-full text-xs text-white/45">
-                      This flow expects `yt-dlp` and `ffmpeg` to be available locally.
+                      YouTube audio is processed by the configured livestream ingest service.
                     </p>
                   )}
 

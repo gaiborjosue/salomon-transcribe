@@ -625,7 +625,7 @@ class LivestreamSession {
       const message =
         error instanceof Error
           ? maybeErrno.code === "ENOENT"
-            ? 'yt-dlp is not installed. Run "brew install yt-dlp" first.'
+            ? `Required ingest executable "${maybeErrno.path || "yt-dlp"}" is not installed.`
             : error.message
           : "Unable to start the livestream session."
       this.setStatus("error", message)
