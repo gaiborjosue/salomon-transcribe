@@ -1,7 +1,6 @@
 import { Resend } from "resend"
 
-const defaultFrom =
-  process.env.RESEND_FROM ?? "Salomon <noreply@salomon.edwardgaibor.me>"
+const defaultFrom = process.env.RESEND_FROM
 
 let resendClient: Resend | null = null
 
@@ -29,6 +28,10 @@ export async function sendTransactionalEmail({
   text: string
   to: string
 }) {
+  if (!defaultFrom) {
+    throw new Error("RESEND_FROM is not configured.")
+  }
+
   const resend = getResendClient()
   const { data, error } = await resend.emails.send(
     {

@@ -14,7 +14,7 @@ It is responsible for:
 1. Start MediaMTX:
 
 ```bash
-mediamtx /Users/edwardgaibor/Projects/salomon/ingest/mediamtx.yml
+mediamtx ingest/mediamtx.yml
 ```
 
 2. Start the ingest worker from the repo root:
