@@ -1,4 +1,4 @@
-import type { TranscriptEntry } from "@/components/transcriber-ui"
+import type { TranscriptEntry } from "@/lib/transcript-types"
 
 export type TranscriptSessionSource = "livestream" | "microphone" | "mux" | "rtmp"
 

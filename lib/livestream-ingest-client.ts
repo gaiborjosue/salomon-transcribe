@@ -1,3 +1,6 @@
+import { getIngestControlHeaders } from "@/lib/ingest-control"
+import type { LivestreamSessionSnapshot } from "@/lib/livestream-types"
+
 const DEFAULT_INGEST_BASE_URL = "http://127.0.0.1:4100"
 
 function getConfiguredBaseUrl() {
@@ -23,22 +26,6 @@ function getIngestUrl(pathname: string, { publicUrl = false } = {}) {
   return new URL(pathname, baseUrl).toString()
 }
 
-function getControlHeaders() {
-  const controlSecret = process.env.INGEST_CONTROL_SECRET?.trim()
-  if (!controlSecret && process.env.NODE_ENV === "production") {
-    throw new Error(
-      "INGEST_CONTROL_SECRET is not configured for the production ingest service."
-    )
-  }
-
-  return {
-    "Content-Type": "application/json",
-    ...(controlSecret
-      ? { "x-salomon-ingest-secret": controlSecret }
-      : {}),
-  }
-}
-
 async function getErrorMessage(response: Response, fallback: string) {
   const body = await response.text()
   if (!body) return fallback
@@ -53,14 +40,11 @@ async function getErrorMessage(response: Response, fallback: string) {
   }
 }
 
-export async function startLivestreamIngestSession(payload: {
-  mode: "conversation" | "sermon"
-  streamUrl: string
-}) {
+export async function startLivestreamIngestSession(streamUrl: string) {
   const response = await fetch(getIngestUrl("/youtube-sessions"), {
     method: "POST",
-    headers: getControlHeaders(),
-    body: JSON.stringify(payload),
+    headers: getIngestControlHeaders(),
+    body: JSON.stringify({ streamUrl }),
   })
 
   if (!response.ok) {
@@ -88,7 +72,7 @@ export async function updateLivestreamIngestSession(
     getIngestUrl(`/youtube-sessions/${encodeURIComponent(sessionId)}/control`),
     {
       method: "POST",
-      headers: getControlHeaders(),
+      headers: getIngestControlHeaders(),
       body: JSON.stringify({ action }),
     }
   )
@@ -101,6 +85,9 @@ export async function updateLivestreamIngestSession(
       )
     )
   }
+
+  const result = (await response.json()) as { snapshot?: LivestreamSessionSnapshot }
+  return result.snapshot
 }
 
 export function getLivestreamIngestEventsUrl(sessionId: string) {

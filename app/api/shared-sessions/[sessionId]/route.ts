@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { sharedSessionManager } from "@/lib/shared-session-manager"
-import type { TranscriptEntry } from "@/components/transcriber-ui"
+import { parseTranscriptSpeakerId, type TranscriptEntry } from "@/lib/transcript-types"
 import { getApiSession } from "@/lib/api-auth"
 import { muxSessionManager } from "@/lib/mux-session-manager"
 
@@ -63,7 +63,7 @@ export async function POST(
       }
 
       const ok = await sharedSessionManager.appendEntry({
-        entry: payload.entry,
+        entry: { ...payload.entry, speakerId: parseTranscriptSpeakerId(payload.entry.speakerId) },
         hostToken,
         sessionId,
       })
@@ -107,7 +107,10 @@ export async function POST(
       }
 
       const ok = await sharedSessionManager.syncSession({
-        entries: payload.entries,
+        entries: payload.entries.map((entry) => ({
+          ...entry,
+          speakerId: parseTranscriptSpeakerId(entry?.speakerId),
+        })),
         hostToken,
         sessionId,
         sourceTitle:

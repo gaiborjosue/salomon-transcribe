@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 
-import type { TranscriptEntry } from "@/components/transcriber-ui"
+import type { TranscriptEntry } from "@/lib/transcript-types"
 import prisma from "@/lib/prisma"
 import { normalizeShareCode, SHARE_CODE_PREFIX } from "@/lib/share-code-utils"
 
@@ -98,12 +98,14 @@ class SharedSessionManager {
   private toEntry(entry: {
     id: string
     lowConfidence: boolean | null
+    speakerId: string | null
     text: string
     timestampMs: number
   }): TranscriptEntry {
     return {
       id: entry.id,
       lowConfidence: entry.lowConfidence ?? undefined,
+      speakerId: entry.speakerId ?? undefined,
       text: entry.text,
       timestampMs: entry.timestampMs,
     }
@@ -112,7 +114,7 @@ class SharedSessionManager {
   private async loadRecentEntries(sessionId: string) {
     const rows = await prisma.sharedSessionEntry.findMany({
       where: { sessionId },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: MAX_ENTRIES,
     })
 
@@ -233,6 +235,7 @@ class SharedSessionManager {
           ? {
               create: nextEntries.map((entry) => ({
                 lowConfidence: entry.lowConfidence,
+                speakerId: entry.speakerId,
                 text: entry.text,
                 timestampMs: entry.timestampMs,
               })),
@@ -241,10 +244,11 @@ class SharedSessionManager {
       },
       include: {
         entries: {
-          orderBy: { createdAt: "asc" },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
           select: {
             id: true,
             lowConfidence: true,
+            speakerId: true,
             text: true,
             timestampMs: true,
           },
@@ -418,6 +422,7 @@ class SharedSessionManager {
       await tx.sharedSessionEntry.create({
         data: {
           lowConfidence: entry.lowConfidence,
+          speakerId: entry.speakerId,
           sessionId,
           text: entry.text,
           timestampMs: entry.timestampMs,
@@ -472,6 +477,7 @@ class SharedSessionManager {
         await tx.sharedSessionEntry.createMany({
           data: nextEntries.map((entry) => ({
             lowConfidence: entry.lowConfidence,
+            speakerId: entry.speakerId,
             sessionId,
             text: entry.text,
             timestampMs: entry.timestampMs,

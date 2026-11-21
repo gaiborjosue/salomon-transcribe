@@ -144,6 +144,7 @@ model MuxTranscriptEntry {
   session       MuxLiveSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   text          String
   lowConfidence Boolean?
+  speakerId     String? @db.Uuid
   timestampMs   Int
   createdAt     DateTime       @default(now())
 
@@ -178,6 +179,7 @@ model RtmpTranscriptEntry {
   session       RtmpSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   text          String
   lowConfidence Boolean?
+  speakerId     String? @db.Uuid
   timestampMs   Int
   createdAt     DateTime    @default(now())
 
@@ -207,6 +209,7 @@ model SharedSessionEntry {
   session       SharedSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   text          String
   lowConfidence Boolean?
+  speakerId     String? @db.Uuid
   timestampMs   Int
   createdAt     DateTime      @default(now())
 
@@ -241,6 +244,7 @@ model TranscriptSessionEntry {
   session       TranscriptSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   text          String
   lowConfidence Boolean?
+  speakerId     String? @db.Uuid
   timestampMs   Int
   createdAt     DateTime          @default(now())
 

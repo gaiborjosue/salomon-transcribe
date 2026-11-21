@@ -39,6 +39,7 @@ export type TranscriptSessionEntryMinAggregateOutputType = {
   sessionId: string | null
   text: string | null
   lowConfidence: boolean | null
+  speakerId: string | null
   timestampMs: number | null
   createdAt: Date | null
 }
@@ -48,6 +49,7 @@ export type TranscriptSessionEntryMaxAggregateOutputType = {
   sessionId: string | null
   text: string | null
   lowConfidence: boolean | null
+  speakerId: string | null
   timestampMs: number | null
   createdAt: Date | null
 }
@@ -57,6 +59,7 @@ export type TranscriptSessionEntryCountAggregateOutputType = {
   sessionId: number
   text: number
   lowConfidence: number
+  speakerId: number
   timestampMs: number
   createdAt: number
   _all: number
@@ -76,6 +79,7 @@ export type TranscriptSessionEntryMinAggregateInputType = {
   sessionId?: true
   text?: true
   lowConfidence?: true
+  speakerId?: true
   timestampMs?: true
   createdAt?: true
 }
@@ -85,6 +89,7 @@ export type TranscriptSessionEntryMaxAggregateInputType = {
   sessionId?: true
   text?: true
   lowConfidence?: true
+  speakerId?: true
   timestampMs?: true
   createdAt?: true
 }
@@ -94,6 +99,7 @@ export type TranscriptSessionEntryCountAggregateInputType = {
   sessionId?: true
   text?: true
   lowConfidence?: true
+  speakerId?: true
   timestampMs?: true
   createdAt?: true
   _all?: true
@@ -190,6 +196,7 @@ export type TranscriptSessionEntryGroupByOutputType = {
   sessionId: string
   text: string
   lowConfidence: boolean | null
+  speakerId: string | null
   timestampMs: number
   createdAt: Date
   _count: TranscriptSessionEntryCountAggregateOutputType | null
@@ -222,6 +229,7 @@ export type TranscriptSessionEntryWhereInput = {
   sessionId?: Prisma.StringFilter<"TranscriptSessionEntry"> | string
   text?: Prisma.StringFilter<"TranscriptSessionEntry"> | string
   lowConfidence?: Prisma.BoolNullableFilter<"TranscriptSessionEntry"> | boolean | null
+  speakerId?: Prisma.UuidNullableFilter<"TranscriptSessionEntry"> | string | null
   timestampMs?: Prisma.IntFilter<"TranscriptSessionEntry"> | number
   createdAt?: Prisma.DateTimeFilter<"TranscriptSessionEntry"> | Date | string
   session?: Prisma.XOR<Prisma.TranscriptSessionScalarRelationFilter, Prisma.TranscriptSessionWhereInput>
@@ -232,6 +240,7 @@ export type TranscriptSessionEntryOrderByWithRelationInput = {
   sessionId?: Prisma.SortOrder
   text?: Prisma.SortOrder
   lowConfidence?: Prisma.SortOrderInput | Prisma.SortOrder
+  speakerId?: Prisma.SortOrderInput | Prisma.SortOrder
   timestampMs?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   session?: Prisma.TranscriptSessionOrderByWithRelationInput
@@ -245,6 +254,7 @@ export type TranscriptSessionEntryWhereUniqueInput = Prisma.AtLeast<{
   sessionId?: Prisma.StringFilter<"TranscriptSessionEntry"> | string
   text?: Prisma.StringFilter<"TranscriptSessionEntry"> | string
   lowConfidence?: Prisma.BoolNullableFilter<"TranscriptSessionEntry"> | boolean | null
+  speakerId?: Prisma.UuidNullableFilter<"TranscriptSessionEntry"> | string | null
   timestampMs?: Prisma.IntFilter<"TranscriptSessionEntry"> | number
   createdAt?: Prisma.DateTimeFilter<"TranscriptSessionEntry"> | Date | string
   session?: Prisma.XOR<Prisma.TranscriptSessionScalarRelationFilter, Prisma.TranscriptSessionWhereInput>
@@ -255,6 +265,7 @@ export type TranscriptSessionEntryOrderByWithAggregationInput = {
   sessionId?: Prisma.SortOrder
   text?: Prisma.SortOrder
   lowConfidence?: Prisma.SortOrderInput | Prisma.SortOrder
+  speakerId?: Prisma.SortOrderInput | Prisma.SortOrder
   timestampMs?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   _count?: Prisma.TranscriptSessionEntryCountOrderByAggregateInput
@@ -272,6 +283,7 @@ export type TranscriptSessionEntryScalarWhereWithAggregatesInput = {
   sessionId?: Prisma.StringWithAggregatesFilter<"TranscriptSessionEntry"> | string
   text?: Prisma.StringWithAggregatesFilter<"TranscriptSessionEntry"> | string
   lowConfidence?: Prisma.BoolNullableWithAggregatesFilter<"TranscriptSessionEntry"> | boolean | null
+  speakerId?: Prisma.UuidNullableWithAggregatesFilter<"TranscriptSessionEntry"> | string | null
   timestampMs?: Prisma.IntWithAggregatesFilter<"TranscriptSessionEntry"> | number
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"TranscriptSessionEntry"> | Date | string
 }
@@ -280,6 +292,7 @@ export type TranscriptSessionEntryCreateInput = {
   id?: string
   text: string
   lowConfidence?: boolean | null
+  speakerId?: string | null
   timestampMs: number
   createdAt?: Date | string
   session: Prisma.TranscriptSessionCreateNestedOneWithoutEntriesInput
@@ -290,6 +303,7 @@ export type TranscriptSessionEntryUncheckedCreateInput = {
   sessionId: string
   text: string
   lowConfidence?: boolean | null
+  speakerId?: string | null
   timestampMs: number
   createdAt?: Date | string
 }
@@ -298,6 +312,7 @@ export type TranscriptSessionEntryUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   text?: Prisma.StringFieldUpdateOperationsInput | string
   lowConfidence?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  speakerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestampMs?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   session?: Prisma.TranscriptSessionUpdateOneRequiredWithoutEntriesNestedInput
@@ -308,6 +323,7 @@ export type TranscriptSessionEntryUncheckedUpdateInput = {
   sessionId?: Prisma.StringFieldUpdateOperationsInput | string
   text?: Prisma.StringFieldUpdateOperationsInput | string
   lowConfidence?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  speakerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestampMs?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -317,6 +333,7 @@ export type TranscriptSessionEntryCreateManyInput = {
   sessionId: string
   text: string
   lowConfidence?: boolean | null
+  speakerId?: string | null
   timestampMs: number
   createdAt?: Date | string
 }
@@ -325,6 +342,7 @@ export type TranscriptSessionEntryUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   text?: Prisma.StringFieldUpdateOperationsInput | string
   lowConfidence?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  speakerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestampMs?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -334,6 +352,7 @@ export type TranscriptSessionEntryUncheckedUpdateManyInput = {
   sessionId?: Prisma.StringFieldUpdateOperationsInput | string
   text?: Prisma.StringFieldUpdateOperationsInput | string
   lowConfidence?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  speakerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestampMs?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -353,6 +372,7 @@ export type TranscriptSessionEntryCountOrderByAggregateInput = {
   sessionId?: Prisma.SortOrder
   text?: Prisma.SortOrder
   lowConfidence?: Prisma.SortOrder
+  speakerId?: Prisma.SortOrder
   timestampMs?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
 }
@@ -366,6 +386,7 @@ export type TranscriptSessionEntryMaxOrderByAggregateInput = {
   sessionId?: Prisma.SortOrder
   text?: Prisma.SortOrder
   lowConfidence?: Prisma.SortOrder
+  speakerId?: Prisma.SortOrder
   timestampMs?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
 }
@@ -375,6 +396,7 @@ export type TranscriptSessionEntryMinOrderByAggregateInput = {
   sessionId?: Prisma.SortOrder
   text?: Prisma.SortOrder
   lowConfidence?: Prisma.SortOrder
+  speakerId?: Prisma.SortOrder
   timestampMs?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
 }
@@ -429,6 +451,7 @@ export type TranscriptSessionEntryCreateWithoutSessionInput = {
   id?: string
   text: string
   lowConfidence?: boolean | null
+  speakerId?: string | null
   timestampMs: number
   createdAt?: Date | string
 }
@@ -437,6 +460,7 @@ export type TranscriptSessionEntryUncheckedCreateWithoutSessionInput = {
   id?: string
   text: string
   lowConfidence?: boolean | null
+  speakerId?: string | null
   timestampMs: number
   createdAt?: Date | string
 }
@@ -475,6 +499,7 @@ export type TranscriptSessionEntryScalarWhereInput = {
   sessionId?: Prisma.StringFilter<"TranscriptSessionEntry"> | string
   text?: Prisma.StringFilter<"TranscriptSessionEntry"> | string
   lowConfidence?: Prisma.BoolNullableFilter<"TranscriptSessionEntry"> | boolean | null
+  speakerId?: Prisma.UuidNullableFilter<"TranscriptSessionEntry"> | string | null
   timestampMs?: Prisma.IntFilter<"TranscriptSessionEntry"> | number
   createdAt?: Prisma.DateTimeFilter<"TranscriptSessionEntry"> | Date | string
 }
@@ -483,6 +508,7 @@ export type TranscriptSessionEntryCreateManySessionInput = {
   id?: string
   text: string
   lowConfidence?: boolean | null
+  speakerId?: string | null
   timestampMs: number
   createdAt?: Date | string
 }
@@ -491,6 +517,7 @@ export type TranscriptSessionEntryUpdateWithoutSessionInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   text?: Prisma.StringFieldUpdateOperationsInput | string
   lowConfidence?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  speakerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestampMs?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -499,6 +526,7 @@ export type TranscriptSessionEntryUncheckedUpdateWithoutSessionInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   text?: Prisma.StringFieldUpdateOperationsInput | string
   lowConfidence?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  speakerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestampMs?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -507,6 +535,7 @@ export type TranscriptSessionEntryUncheckedUpdateManyWithoutSessionInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   text?: Prisma.StringFieldUpdateOperationsInput | string
   lowConfidence?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  speakerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestampMs?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -518,6 +547,7 @@ export type TranscriptSessionEntrySelect<ExtArgs extends runtime.Types.Extension
   sessionId?: boolean
   text?: boolean
   lowConfidence?: boolean
+  speakerId?: boolean
   timestampMs?: boolean
   createdAt?: boolean
   session?: boolean | Prisma.TranscriptSessionDefaultArgs<ExtArgs>
@@ -528,6 +558,7 @@ export type TranscriptSessionEntrySelectCreateManyAndReturn<ExtArgs extends runt
   sessionId?: boolean
   text?: boolean
   lowConfidence?: boolean
+  speakerId?: boolean
   timestampMs?: boolean
   createdAt?: boolean
   session?: boolean | Prisma.TranscriptSessionDefaultArgs<ExtArgs>
@@ -538,6 +569,7 @@ export type TranscriptSessionEntrySelectUpdateManyAndReturn<ExtArgs extends runt
   sessionId?: boolean
   text?: boolean
   lowConfidence?: boolean
+  speakerId?: boolean
   timestampMs?: boolean
   createdAt?: boolean
   session?: boolean | Prisma.TranscriptSessionDefaultArgs<ExtArgs>
@@ -548,11 +580,12 @@ export type TranscriptSessionEntrySelectScalar = {
   sessionId?: boolean
   text?: boolean
   lowConfidence?: boolean
+  speakerId?: boolean
   timestampMs?: boolean
   createdAt?: boolean
 }
 
-export type TranscriptSessionEntryOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "sessionId" | "text" | "lowConfidence" | "timestampMs" | "createdAt", ExtArgs["result"]["transcriptSessionEntry"]>
+export type TranscriptSessionEntryOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "sessionId" | "text" | "lowConfidence" | "speakerId" | "timestampMs" | "createdAt", ExtArgs["result"]["transcriptSessionEntry"]>
 export type TranscriptSessionEntryInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   session?: boolean | Prisma.TranscriptSessionDefaultArgs<ExtArgs>
 }
@@ -573,6 +606,7 @@ export type $TranscriptSessionEntryPayload<ExtArgs extends runtime.Types.Extensi
     sessionId: string
     text: string
     lowConfidence: boolean | null
+    speakerId: string | null
     timestampMs: number
     createdAt: Date
   }, ExtArgs["result"]["transcriptSessionEntry"]>
@@ -1003,6 +1037,7 @@ export interface TranscriptSessionEntryFieldRefs {
   readonly sessionId: Prisma.FieldRef<"TranscriptSessionEntry", 'String'>
   readonly text: Prisma.FieldRef<"TranscriptSessionEntry", 'String'>
   readonly lowConfidence: Prisma.FieldRef<"TranscriptSessionEntry", 'Boolean'>
+  readonly speakerId: Prisma.FieldRef<"TranscriptSessionEntry", 'String'>
   readonly timestampMs: Prisma.FieldRef<"TranscriptSessionEntry", 'Int'>
   readonly createdAt: Prisma.FieldRef<"TranscriptSessionEntry", 'DateTime'>
 }

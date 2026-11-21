@@ -1,3 +1,5 @@
+import { getIngestControlHeaders } from "@/lib/ingest-control"
+
 const RTMP_INGEST_BASE_URL =
   process.env.RTMP_INGEST_BASE_URL ?? "http://127.0.0.1:4100"
 
@@ -13,9 +15,7 @@ export async function startMuxIngestSession(payload: {
 }) {
   const response = await fetch(getIngestUrl("/mux-sessions"), {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: getIngestControlHeaders(),
     body: JSON.stringify(payload),
   })
 
@@ -28,8 +28,9 @@ export async function startMuxIngestSession(payload: {
 }
 
 export async function stopMuxIngestSession(sessionId: string) {
-  const response = await fetch(getIngestUrl(`/mux-sessions/${sessionId}/stop`), {
+  const response = await fetch(getIngestUrl(`/mux-sessions/${encodeURIComponent(sessionId)}/stop`), {
     method: "POST",
+    headers: getIngestControlHeaders(),
   })
 
   if (!response.ok) {

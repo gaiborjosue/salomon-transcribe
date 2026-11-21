@@ -39,6 +39,7 @@ export type SharedSessionEntryMinAggregateOutputType = {
   sessionId: string | null
   text: string | null
   lowConfidence: boolean | null
+  speakerId: string | null
   timestampMs: number | null
   createdAt: Date | null
 }
@@ -48,6 +49,7 @@ export type SharedSessionEntryMaxAggregateOutputType = {
   sessionId: string | null
   text: string | null
   lowConfidence: boolean | null
+  speakerId: string | null
   timestampMs: number | null
   createdAt: Date | null
 }
@@ -57,6 +59,7 @@ export type SharedSessionEntryCountAggregateOutputType = {
   sessionId: number
   text: number
   lowConfidence: number
+  speakerId: number
   timestampMs: number
   createdAt: number
   _all: number
@@ -76,6 +79,7 @@ export type SharedSessionEntryMinAggregateInputType = {
   sessionId?: true
   text?: true
   lowConfidence?: true
+  speakerId?: true
   timestampMs?: true
   createdAt?: true
 }
@@ -85,6 +89,7 @@ export type SharedSessionEntryMaxAggregateInputType = {
   sessionId?: true
   text?: true
   lowConfidence?: true
+  speakerId?: true
   timestampMs?: true
   createdAt?: true
 }
@@ -94,6 +99,7 @@ export type SharedSessionEntryCountAggregateInputType = {
   sessionId?: true
   text?: true
   lowConfidence?: true
+  speakerId?: true
   timestampMs?: true
   createdAt?: true
   _all?: true
@@ -190,6 +196,7 @@ export type SharedSessionEntryGroupByOutputType = {
   sessionId: string
   text: string
   lowConfidence: boolean | null
+  speakerId: string | null
   timestampMs: number
   createdAt: Date
   _count: SharedSessionEntryCountAggregateOutputType | null
@@ -222,6 +229,7 @@ export type SharedSessionEntryWhereInput = {
   sessionId?: Prisma.StringFilter<"SharedSessionEntry"> | string
   text?: Prisma.StringFilter<"SharedSessionEntry"> | string
   lowConfidence?: Prisma.BoolNullableFilter<"SharedSessionEntry"> | boolean | null
+  speakerId?: Prisma.UuidNullableFilter<"SharedSessionEntry"> | string | null
   timestampMs?: Prisma.IntFilter<"SharedSessionEntry"> | number
   createdAt?: Prisma.DateTimeFilter<"SharedSessionEntry"> | Date | string
   session?: Prisma.XOR<Prisma.SharedSessionScalarRelationFilter, Prisma.SharedSessionWhereInput>
@@ -232,6 +240,7 @@ export type SharedSessionEntryOrderByWithRelationInput = {
   sessionId?: Prisma.SortOrder
   text?: Prisma.SortOrder
   lowConfidence?: Prisma.SortOrderInput | Prisma.SortOrder
+  speakerId?: Prisma.SortOrderInput | Prisma.SortOrder
   timestampMs?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   session?: Prisma.SharedSessionOrderByWithRelationInput
@@ -245,6 +254,7 @@ export type SharedSessionEntryWhereUniqueInput = Prisma.AtLeast<{
   sessionId?: Prisma.StringFilter<"SharedSessionEntry"> | string
   text?: Prisma.StringFilter<"SharedSessionEntry"> | string
   lowConfidence?: Prisma.BoolNullableFilter<"SharedSessionEntry"> | boolean | null
+  speakerId?: Prisma.UuidNullableFilter<"SharedSessionEntry"> | string | null
   timestampMs?: Prisma.IntFilter<"SharedSessionEntry"> | number
   createdAt?: Prisma.DateTimeFilter<"SharedSessionEntry"> | Date | string
   session?: Prisma.XOR<Prisma.SharedSessionScalarRelationFilter, Prisma.SharedSessionWhereInput>
@@ -255,6 +265,7 @@ export type SharedSessionEntryOrderByWithAggregationInput = {
   sessionId?: Prisma.SortOrder
   text?: Prisma.SortOrder
   lowConfidence?: Prisma.SortOrderInput | Prisma.SortOrder
+  speakerId?: Prisma.SortOrderInput | Prisma.SortOrder
   timestampMs?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   _count?: Prisma.SharedSessionEntryCountOrderByAggregateInput
@@ -272,6 +283,7 @@ export type SharedSessionEntryScalarWhereWithAggregatesInput = {
   sessionId?: Prisma.StringWithAggregatesFilter<"SharedSessionEntry"> | string
   text?: Prisma.StringWithAggregatesFilter<"SharedSessionEntry"> | string
   lowConfidence?: Prisma.BoolNullableWithAggregatesFilter<"SharedSessionEntry"> | boolean | null
+  speakerId?: Prisma.UuidNullableWithAggregatesFilter<"SharedSessionEntry"> | string | null
   timestampMs?: Prisma.IntWithAggregatesFilter<"SharedSessionEntry"> | number
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"SharedSessionEntry"> | Date | string
 }
@@ -280,6 +292,7 @@ export type SharedSessionEntryCreateInput = {
   id?: string
   text: string
   lowConfidence?: boolean | null
+  speakerId?: string | null
   timestampMs: number
   createdAt?: Date | string
   session: Prisma.SharedSessionCreateNestedOneWithoutEntriesInput
@@ -290,6 +303,7 @@ export type SharedSessionEntryUncheckedCreateInput = {
   sessionId: string
   text: string
   lowConfidence?: boolean | null
+  speakerId?: string | null
   timestampMs: number
   createdAt?: Date | string
 }
@@ -298,6 +312,7 @@ export type SharedSessionEntryUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   text?: Prisma.StringFieldUpdateOperationsInput | string
   lowConfidence?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  speakerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestampMs?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   session?: Prisma.SharedSessionUpdateOneRequiredWithoutEntriesNestedInput
@@ -308,6 +323,7 @@ export type SharedSessionEntryUncheckedUpdateInput = {
   sessionId?: Prisma.StringFieldUpdateOperationsInput | string
   text?: Prisma.StringFieldUpdateOperationsInput | string
   lowConfidence?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  speakerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestampMs?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -317,6 +333,7 @@ export type SharedSessionEntryCreateManyInput = {
   sessionId: string
   text: string
   lowConfidence?: boolean | null
+  speakerId?: string | null
   timestampMs: number
   createdAt?: Date | string
 }
@@ -325,6 +342,7 @@ export type SharedSessionEntryUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   text?: Prisma.StringFieldUpdateOperationsInput | string
   lowConfidence?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  speakerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestampMs?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -334,6 +352,7 @@ export type SharedSessionEntryUncheckedUpdateManyInput = {
   sessionId?: Prisma.StringFieldUpdateOperationsInput | string
   text?: Prisma.StringFieldUpdateOperationsInput | string
   lowConfidence?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  speakerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestampMs?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -353,6 +372,7 @@ export type SharedSessionEntryCountOrderByAggregateInput = {
   sessionId?: Prisma.SortOrder
   text?: Prisma.SortOrder
   lowConfidence?: Prisma.SortOrder
+  speakerId?: Prisma.SortOrder
   timestampMs?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
 }
@@ -366,6 +386,7 @@ export type SharedSessionEntryMaxOrderByAggregateInput = {
   sessionId?: Prisma.SortOrder
   text?: Prisma.SortOrder
   lowConfidence?: Prisma.SortOrder
+  speakerId?: Prisma.SortOrder
   timestampMs?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
 }
@@ -375,6 +396,7 @@ export type SharedSessionEntryMinOrderByAggregateInput = {
   sessionId?: Prisma.SortOrder
   text?: Prisma.SortOrder
   lowConfidence?: Prisma.SortOrder
+  speakerId?: Prisma.SortOrder
   timestampMs?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
 }
@@ -429,6 +451,7 @@ export type SharedSessionEntryCreateWithoutSessionInput = {
   id?: string
   text: string
   lowConfidence?: boolean | null
+  speakerId?: string | null
   timestampMs: number
   createdAt?: Date | string
 }
@@ -437,6 +460,7 @@ export type SharedSessionEntryUncheckedCreateWithoutSessionInput = {
   id?: string
   text: string
   lowConfidence?: boolean | null
+  speakerId?: string | null
   timestampMs: number
   createdAt?: Date | string
 }
@@ -475,6 +499,7 @@ export type SharedSessionEntryScalarWhereInput = {
   sessionId?: Prisma.StringFilter<"SharedSessionEntry"> | string
   text?: Prisma.StringFilter<"SharedSessionEntry"> | string
   lowConfidence?: Prisma.BoolNullableFilter<"SharedSessionEntry"> | boolean | null
+  speakerId?: Prisma.UuidNullableFilter<"SharedSessionEntry"> | string | null
   timestampMs?: Prisma.IntFilter<"SharedSessionEntry"> | number
   createdAt?: Prisma.DateTimeFilter<"SharedSessionEntry"> | Date | string
 }
@@ -483,6 +508,7 @@ export type SharedSessionEntryCreateManySessionInput = {
   id?: string
   text: string
   lowConfidence?: boolean | null
+  speakerId?: string | null
   timestampMs: number
   createdAt?: Date | string
 }
@@ -491,6 +517,7 @@ export type SharedSessionEntryUpdateWithoutSessionInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   text?: Prisma.StringFieldUpdateOperationsInput | string
   lowConfidence?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  speakerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestampMs?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -499,6 +526,7 @@ export type SharedSessionEntryUncheckedUpdateWithoutSessionInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   text?: Prisma.StringFieldUpdateOperationsInput | string
   lowConfidence?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  speakerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestampMs?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -507,6 +535,7 @@ export type SharedSessionEntryUncheckedUpdateManyWithoutSessionInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   text?: Prisma.StringFieldUpdateOperationsInput | string
   lowConfidence?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  speakerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestampMs?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -518,6 +547,7 @@ export type SharedSessionEntrySelect<ExtArgs extends runtime.Types.Extensions.In
   sessionId?: boolean
   text?: boolean
   lowConfidence?: boolean
+  speakerId?: boolean
   timestampMs?: boolean
   createdAt?: boolean
   session?: boolean | Prisma.SharedSessionDefaultArgs<ExtArgs>
@@ -528,6 +558,7 @@ export type SharedSessionEntrySelectCreateManyAndReturn<ExtArgs extends runtime.
   sessionId?: boolean
   text?: boolean
   lowConfidence?: boolean
+  speakerId?: boolean
   timestampMs?: boolean
   createdAt?: boolean
   session?: boolean | Prisma.SharedSessionDefaultArgs<ExtArgs>
@@ -538,6 +569,7 @@ export type SharedSessionEntrySelectUpdateManyAndReturn<ExtArgs extends runtime.
   sessionId?: boolean
   text?: boolean
   lowConfidence?: boolean
+  speakerId?: boolean
   timestampMs?: boolean
   createdAt?: boolean
   session?: boolean | Prisma.SharedSessionDefaultArgs<ExtArgs>
@@ -548,11 +580,12 @@ export type SharedSessionEntrySelectScalar = {
   sessionId?: boolean
   text?: boolean
   lowConfidence?: boolean
+  speakerId?: boolean
   timestampMs?: boolean
   createdAt?: boolean
 }
 
-export type SharedSessionEntryOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "sessionId" | "text" | "lowConfidence" | "timestampMs" | "createdAt", ExtArgs["result"]["sharedSessionEntry"]>
+export type SharedSessionEntryOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "sessionId" | "text" | "lowConfidence" | "speakerId" | "timestampMs" | "createdAt", ExtArgs["result"]["sharedSessionEntry"]>
 export type SharedSessionEntryInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   session?: boolean | Prisma.SharedSessionDefaultArgs<ExtArgs>
 }
@@ -573,6 +606,7 @@ export type $SharedSessionEntryPayload<ExtArgs extends runtime.Types.Extensions.
     sessionId: string
     text: string
     lowConfidence: boolean | null
+    speakerId: string | null
     timestampMs: number
     createdAt: Date
   }, ExtArgs["result"]["sharedSessionEntry"]>
@@ -1003,6 +1037,7 @@ export interface SharedSessionEntryFieldRefs {
   readonly sessionId: Prisma.FieldRef<"SharedSessionEntry", 'String'>
   readonly text: Prisma.FieldRef<"SharedSessionEntry", 'String'>
   readonly lowConfidence: Prisma.FieldRef<"SharedSessionEntry", 'Boolean'>
+  readonly speakerId: Prisma.FieldRef<"SharedSessionEntry", 'String'>
   readonly timestampMs: Prisma.FieldRef<"SharedSessionEntry", 'Int'>
   readonly createdAt: Prisma.FieldRef<"SharedSessionEntry", 'DateTime'>
 }

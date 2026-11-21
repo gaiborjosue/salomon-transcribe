@@ -1,4 +1,4 @@
-import type { TranscriptEntry } from "@/components/transcriber-ui"
+import type { TranscriptEntry } from "@/lib/transcript-types"
 
 export type RtmpSessionStatus = "connecting" | "connected" | "paused" | "transcribing" | "disconnected" | "error"
 

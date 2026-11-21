@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useImperativeHandle } from "react"
 
 import type {
   LivestreamControllerHandle,
@@ -31,7 +31,7 @@ export function LiveTranslationLivestreamController({
     status: LivestreamControllerStatus
   }) => void
 }) {
-  const translator = useLivestreamTranslation({
+  const { connect, disconnect, control } = useLivestreamTranslation({
     onError,
     onFinalTranscript,
     onPartialTranscript,
@@ -39,32 +39,12 @@ export function LiveTranslationLivestreamController({
     onStatusChange,
   })
 
-  useEffect(() => {
-    controllerRef.current = {
-      connect: translator.connect,
-      disconnect: translator.disconnect,
-      pause: translator.pause,
-      resume: translator.resume,
-      sessionId: translator.sessionId,
-    }
-
-    return () => {
-      controllerRef.current = null
-    }
-  }, [controllerRef, translator])
-
-  useEffect(() => {
-    controllerRef.current = controllerRef.current
-      ? {
-          ...controllerRef.current,
-          sessionId: translator.sessionId,
-        }
-      : null
-  }, [controllerRef, translator.sessionId])
-
-  useEffect(() => {
-    onStatusChange({ status: translator.status })
-  }, [onStatusChange, translator.status])
+  useImperativeHandle(controllerRef, () => ({
+    connect,
+    disconnect,
+    pause: () => control("pause"),
+    resume: () => control("resume"),
+  }), [connect, disconnect, control])
 
   return null
 }

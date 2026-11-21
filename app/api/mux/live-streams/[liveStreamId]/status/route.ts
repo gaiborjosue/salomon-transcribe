@@ -17,6 +17,25 @@ function normalizeStatus(input: string | undefined): MuxProcessingStatus | null 
   }
 }
 
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ liveStreamId: string }> }
+) {
+  const { liveStreamId } = await params
+  const ingestToken = request.headers.get("x-salomon-ingest-token")?.trim() || ""
+
+  if (!ingestToken) {
+    return NextResponse.json({ error: "Missing ingest token." }, { status: 401 })
+  }
+
+  const session = await muxSessionManager.getIngestSession(liveStreamId, ingestToken)
+  if (!session) {
+    return NextResponse.json({ error: "Mux session not found." }, { status: 404 })
+  }
+
+  return NextResponse.json({ currentStatus: session.status })
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ liveStreamId: string }> }

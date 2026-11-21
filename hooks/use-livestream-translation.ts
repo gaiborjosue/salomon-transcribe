@@ -1,38 +1,25 @@
 "use client"
 
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useEffect, useRef } from "react"
 
 import type {
-  LivestreamMode,
   LivestreamSessionSnapshot,
   LivestreamSessionStatus,
   LivestreamTranscriptEntry,
 } from "@/lib/livestream-types"
+
+type LivestreamStatusUpdate = {
+  error?: string
+  sourceTitle?: string
+  status: LivestreamSessionStatus
+}
 
 interface LivestreamConfig {
   onError?: (error: Error | Event) => void
   onFinalTranscript?: (entry: LivestreamTranscriptEntry) => void
   onPartialTranscript?: (data: { text?: string }) => void
   onSnapshot?: (snapshot: LivestreamSessionSnapshot) => void
-  onStatusChange?: (payload: {
-    error?: string
-    sourceTitle?: string
-    status: LivestreamSessionStatus
-  }) => void
-}
-
-interface ConnectOptions {
-  streamUrl: string
-  transcriptionMode: LivestreamMode
-}
-
-interface LivestreamHook {
-  connect: (options: ConnectOptions) => Promise<void>
-  disconnect: () => Promise<void>
-  pause: () => Promise<void>
-  resume: () => Promise<void>
-  sessionId: string | null
-  status: LivestreamSessionStatus
+  onStatusChange?: (payload: LivestreamStatusUpdate) => void
 }
 
 async function postSessionAction(
@@ -55,18 +42,27 @@ async function postSessionAction(
         : `Livestream ${action} failed with status ${response.status}`
     )
   }
+
+  const result = (await response.json()) as { snapshot?: LivestreamSessionSnapshot }
+  return result.snapshot
 }
 
-export function useLivestreamTranslation(config: LivestreamConfig): LivestreamHook {
-  const [status, setStatus] = useState<LivestreamSessionStatus>("idle")
-  const [sessionId, setSessionId] = useState<string | null>(null)
+export function useLivestreamTranslation(config: LivestreamConfig) {
+  const callbacks = useRef(config)
   const eventSourceRef = useRef<EventSource | null>(null)
   const connectingRef = useRef(false)
+  const sessionIdRef = useRef<string | null>(null)
+  const requestGeneration = useRef(0)
+  const receivedEntries = useRef(new Set<string>())
   const statusRef = useRef<LivestreamSessionStatus>("idle")
 
-  const updateStatus = useCallback((nextStatus: LivestreamSessionStatus) => {
-    statusRef.current = nextStatus
-    setStatus(nextStatus)
+  useEffect(() => {
+    callbacks.current = config
+  }, [config])
+
+  const updateStatus = useCallback((payload: LivestreamStatusUpdate) => {
+    statusRef.current = payload.status
+    callbacks.current.onStatusChange?.(payload)
   }, [])
 
   const closeEventSource = useCallback(() => {
@@ -74,37 +70,52 @@ export function useLivestreamTranslation(config: LivestreamConfig): LivestreamHo
     eventSourceRef.current = null
   }, [])
 
+  useEffect(() => {
+    return () => {
+      requestGeneration.current += 1
+      closeEventSource()
+    }
+  }, [closeEventSource])
+
   const disconnect = useCallback(async () => {
-    const currentSessionId = sessionId
+    requestGeneration.current += 1
+    connectingRef.current = false
+    const currentSessionId = sessionIdRef.current
+    sessionIdRef.current = null
     closeEventSource()
-    setSessionId(null)
 
     if (!currentSessionId) {
-      updateStatus("disconnected")
+      updateStatus({ status: "disconnected" })
       return
     }
 
     try {
-      await postSessionAction(currentSessionId, "stop")
+      const snapshot = await postSessionAction(currentSessionId, "stop")
+      for (const entry of snapshot?.segments ?? []) {
+        if (!receivedEntries.current.has(entry.id)) {
+          callbacks.current.onFinalTranscript?.(entry)
+        }
+      }
     } catch (error) {
       if (error instanceof Error || error instanceof Event) {
-        config.onError?.(error)
+        callbacks.current.onError?.(error)
       }
     } finally {
-      updateStatus("disconnected")
+      updateStatus({ status: "disconnected" })
     }
-  }, [closeEventSource, config, sessionId, updateStatus])
+  }, [closeEventSource, updateStatus])
 
   const connect = useCallback(
-    async (options: ConnectOptions) => {
-      if (connectingRef.current) {
+    async (streamUrl: string) => {
+      if (connectingRef.current || sessionIdRef.current) {
         return
       }
 
       connectingRef.current = true
-      updateStatus("connecting")
+      const generation = ++requestGeneration.current
+      receivedEntries.current.clear()
+      updateStatus({ status: "connecting" })
       closeEventSource()
-      setSessionId(null)
 
       try {
         const response = await fetch("/api/livestreamtest/session", {
@@ -112,7 +123,7 @@ export function useLivestreamTranslation(config: LivestreamConfig): LivestreamHo
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(options),
+          body: JSON.stringify({ streamUrl }),
         })
 
         if (!response.ok) {
@@ -125,7 +136,11 @@ export function useLivestreamTranslation(config: LivestreamConfig): LivestreamHo
         }
 
         const payload = (await response.json()) as { sessionId: string }
-        setSessionId(payload.sessionId)
+        if (generation !== requestGeneration.current) {
+          await postSessionAction(payload.sessionId, "stop")
+          return
+        }
+        sessionIdRef.current = payload.sessionId
 
         const eventSource = new EventSource(
           `/api/livestreamtest/session/${payload.sessionId}/events`
@@ -136,38 +151,49 @@ export function useLivestreamTranslation(config: LivestreamConfig): LivestreamHo
           const snapshot = JSON.parse(
             (event as MessageEvent<string>).data
           ) as LivestreamSessionSnapshot
-          updateStatus(snapshot.status)
-          config.onSnapshot?.(snapshot)
+          receivedEntries.current = new Set(snapshot.segments.map((entry) => entry.id))
+          callbacks.current.onSnapshot?.(snapshot)
+          updateStatus({
+            status: snapshot.status,
+            error: snapshot.error,
+            sourceTitle: snapshot.sourceTitle,
+          })
+          if (snapshot.status === "error" || snapshot.status === "disconnected") {
+            sessionIdRef.current = null
+            closeEventSource()
+          }
         })
 
         eventSource.addEventListener("segment", (event) => {
           const entry = JSON.parse(
             (event as MessageEvent<string>).data
           ) as LivestreamTranscriptEntry
-          config.onFinalTranscript?.(entry)
+          if (!receivedEntries.current.has(entry.id)) {
+            receivedEntries.current.add(entry.id)
+            callbacks.current.onFinalTranscript?.(entry)
+          }
         })
 
         eventSource.addEventListener("partial", (event) => {
           const payload = JSON.parse(
             (event as MessageEvent<string>).data
           ) as { text?: string }
-          config.onPartialTranscript?.(payload)
+          callbacks.current.onPartialTranscript?.(payload)
         })
 
         eventSource.addEventListener("status", (event) => {
-          const nextStatus = JSON.parse((event as MessageEvent<string>).data) as {
-            error?: string
-            sourceTitle?: string
-            status: LivestreamSessionStatus
-          }
-          updateStatus(nextStatus.status)
-          config.onStatusChange?.(nextStatus)
+          const nextStatus = JSON.parse((event as MessageEvent<string>).data) as LivestreamStatusUpdate
+          updateStatus(nextStatus)
           if (nextStatus.error) {
-            config.onError?.(new Error(nextStatus.error))
+            callbacks.current.onError?.(new Error(nextStatus.error))
+          }
+          if (nextStatus.status === "error" || nextStatus.status === "disconnected") {
+            sessionIdRef.current = null
+            closeEventSource()
           }
         })
 
-        eventSource.onerror = (event) => {
+        eventSource.onerror = () => {
           if (
             statusRef.current === "paused" ||
             statusRef.current === "disconnected"
@@ -176,41 +202,37 @@ export function useLivestreamTranslation(config: LivestreamConfig): LivestreamHo
           }
 
           if (eventSource.readyState === EventSource.CLOSED) {
-            updateStatus("error")
-            config.onError?.(new Error("The livestream connection ended."))
+            sessionIdRef.current = null
+            updateStatus({ status: "error" })
+            callbacks.current.onError?.(new Error("The livestream connection ended."))
           }
         }
       } catch (error) {
-        updateStatus("error")
+        if (generation !== requestGeneration.current) return
+        updateStatus({ status: "error" })
         if (error instanceof Error || error instanceof Event) {
-          config.onError?.(error)
+          callbacks.current.onError?.(error)
         }
         throw error
       } finally {
-        connectingRef.current = false
+        if (generation === requestGeneration.current) connectingRef.current = false
       }
     },
-    [closeEventSource, config, updateStatus]
+    [closeEventSource, updateStatus]
   )
 
-  const pause = useCallback(async () => {
+  const control = useCallback(async (action: "pause" | "resume") => {
+    const sessionId = sessionIdRef.current
     if (!sessionId) return
-    await postSessionAction(sessionId, "pause")
-    updateStatus("paused")
-  }, [sessionId, updateStatus])
 
-  const resume = useCallback(async () => {
-    if (!sessionId) return
-    await postSessionAction(sessionId, "resume")
-    updateStatus("connecting")
-  }, [sessionId, updateStatus])
+    try {
+      await postSessionAction(sessionId, action)
+    } catch (error) {
+      if (sessionId === sessionIdRef.current && error instanceof Error) {
+        callbacks.current.onError?.(error)
+      }
+    }
+  }, [])
 
-  return {
-    connect,
-    disconnect,
-    pause,
-    resume,
-    sessionId,
-    status,
-  }
+  return { connect, disconnect, control }
 }

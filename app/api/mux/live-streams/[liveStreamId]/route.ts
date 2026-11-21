@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 
 import { getApiSession } from "@/lib/api-auth"
-import { warmServerAudioClassifier } from "@/lib/audio-content-classifier"
 import { bestEffortDeleteMuxAssetsForLiveStream } from "@/lib/mux-live-assets"
 import { getMuxPlaybackUrl, getPublicMuxPlaybackId } from "@/lib/mux-live-utils"
 import { startMuxIngestSession, stopMuxIngestSession } from "@/lib/mux-ingest-client"
@@ -155,7 +154,6 @@ export async function GET(
       const workerPayload = await muxSessionManager.prepareWorkerStart(liveStreamId)
       if (workerPayload) {
         try {
-          await warmServerAudioClassifier()
           await startMuxIngestSession({
             appBaseUrl: getAppBaseUrl(),
             ingestToken: workerPayload.ingestToken,

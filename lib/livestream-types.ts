@@ -1,4 +1,4 @@
-export type LivestreamMode = "conversation" | "sermon"
+import type { TranscriptEntry } from "@/lib/transcript-types"
 
 export type LivestreamSessionStatus =
   | "idle"
@@ -9,17 +9,10 @@ export type LivestreamSessionStatus =
   | "disconnected"
   | "error"
 
-export interface LivestreamTranscriptEntry {
-  id: string
-  lowConfidence?: boolean
-  text: string
-  timestampMs: number
-}
-
 export interface LivestreamSessionSnapshot {
   error?: string
   id: string
-  segments: LivestreamTranscriptEntry[]
+  segments: TranscriptEntry[]
   sourceTitle?: string
   status: LivestreamSessionStatus
   streamUrl: string

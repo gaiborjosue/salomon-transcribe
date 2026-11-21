@@ -1,6 +1,6 @@
 import { cacheLife, cacheTag } from "next/cache"
 
-import type { TranscriptEntry } from "@/components/transcriber-ui"
+import type { TranscriptEntry } from "@/lib/transcript-types"
 import prisma from "@/lib/prisma"
 import type {
   TranscriptSessionDetail,
@@ -130,10 +130,11 @@ export async function getTranscriptSessionDetail(args: {
     where: { id: args.sessionId },
     include: {
       entries: {
-        orderBy: { createdAt: "asc" },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         select: {
           id: true,
           lowConfidence: true,
+          speakerId: true,
           text: true,
           timestampMs: true,
         },
@@ -150,11 +151,13 @@ export async function getTranscriptSessionDetail(args: {
     entries: session.entries.map((entry: {
       id: string
       lowConfidence: boolean | null
+      speakerId: string | null
       text: string
       timestampMs: number
     }) => ({
       id: entry.id,
       lowConfidence: entry.lowConfidence ?? undefined,
+      speakerId: entry.speakerId ?? undefined,
       text: entry.text,
       timestampMs: entry.timestampMs,
     })),
@@ -206,6 +209,7 @@ export async function createTranscriptSession(args: {
       entries: {
         create: filteredEntries.map((entry) => ({
           lowConfidence: entry.lowConfidence,
+          speakerId: entry.speakerId,
           text: entry.text,
           timestampMs: entry.timestampMs,
         })),
@@ -213,10 +217,11 @@ export async function createTranscriptSession(args: {
     },
     include: {
       entries: {
-        orderBy: { createdAt: "asc" },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         select: {
           id: true,
           lowConfidence: true,
+          speakerId: true,
           text: true,
           timestampMs: true,
         },
@@ -230,11 +235,13 @@ export async function createTranscriptSession(args: {
       entries: session.entries.map((entry: {
         id: string
         lowConfidence: boolean | null
+        speakerId: string | null
         text: string
         timestampMs: number
       }) => ({
         id: entry.id,
         lowConfidence: entry.lowConfidence ?? undefined,
+        speakerId: entry.speakerId ?? undefined,
         text: entry.text,
         timestampMs: entry.timestampMs,
       })),

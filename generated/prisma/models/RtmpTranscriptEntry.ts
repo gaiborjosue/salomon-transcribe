@@ -39,6 +39,7 @@ export type RtmpTranscriptEntryMinAggregateOutputType = {
   sessionId: string | null
   text: string | null
   lowConfidence: boolean | null
+  speakerId: string | null
   timestampMs: number | null
   createdAt: Date | null
 }
@@ -48,6 +49,7 @@ export type RtmpTranscriptEntryMaxAggregateOutputType = {
   sessionId: string | null
   text: string | null
   lowConfidence: boolean | null
+  speakerId: string | null
   timestampMs: number | null
   createdAt: Date | null
 }
@@ -57,6 +59,7 @@ export type RtmpTranscriptEntryCountAggregateOutputType = {
   sessionId: number
   text: number
   lowConfidence: number
+  speakerId: number
   timestampMs: number
   createdAt: number
   _all: number
@@ -76,6 +79,7 @@ export type RtmpTranscriptEntryMinAggregateInputType = {
   sessionId?: true
   text?: true
   lowConfidence?: true
+  speakerId?: true
   timestampMs?: true
   createdAt?: true
 }
@@ -85,6 +89,7 @@ export type RtmpTranscriptEntryMaxAggregateInputType = {
   sessionId?: true
   text?: true
   lowConfidence?: true
+  speakerId?: true
   timestampMs?: true
   createdAt?: true
 }
@@ -94,6 +99,7 @@ export type RtmpTranscriptEntryCountAggregateInputType = {
   sessionId?: true
   text?: true
   lowConfidence?: true
+  speakerId?: true
   timestampMs?: true
   createdAt?: true
   _all?: true
@@ -190,6 +196,7 @@ export type RtmpTranscriptEntryGroupByOutputType = {
   sessionId: string
   text: string
   lowConfidence: boolean | null
+  speakerId: string | null
   timestampMs: number
   createdAt: Date
   _count: RtmpTranscriptEntryCountAggregateOutputType | null
@@ -222,6 +229,7 @@ export type RtmpTranscriptEntryWhereInput = {
   sessionId?: Prisma.StringFilter<"RtmpTranscriptEntry"> | string
   text?: Prisma.StringFilter<"RtmpTranscriptEntry"> | string
   lowConfidence?: Prisma.BoolNullableFilter<"RtmpTranscriptEntry"> | boolean | null
+  speakerId?: Prisma.UuidNullableFilter<"RtmpTranscriptEntry"> | string | null
   timestampMs?: Prisma.IntFilter<"RtmpTranscriptEntry"> | number
   createdAt?: Prisma.DateTimeFilter<"RtmpTranscriptEntry"> | Date | string
   session?: Prisma.XOR<Prisma.RtmpSessionScalarRelationFilter, Prisma.RtmpSessionWhereInput>
@@ -232,6 +240,7 @@ export type RtmpTranscriptEntryOrderByWithRelationInput = {
   sessionId?: Prisma.SortOrder
   text?: Prisma.SortOrder
   lowConfidence?: Prisma.SortOrderInput | Prisma.SortOrder
+  speakerId?: Prisma.SortOrderInput | Prisma.SortOrder
   timestampMs?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   session?: Prisma.RtmpSessionOrderByWithRelationInput
@@ -245,6 +254,7 @@ export type RtmpTranscriptEntryWhereUniqueInput = Prisma.AtLeast<{
   sessionId?: Prisma.StringFilter<"RtmpTranscriptEntry"> | string
   text?: Prisma.StringFilter<"RtmpTranscriptEntry"> | string
   lowConfidence?: Prisma.BoolNullableFilter<"RtmpTranscriptEntry"> | boolean | null
+  speakerId?: Prisma.UuidNullableFilter<"RtmpTranscriptEntry"> | string | null
   timestampMs?: Prisma.IntFilter<"RtmpTranscriptEntry"> | number
   createdAt?: Prisma.DateTimeFilter<"RtmpTranscriptEntry"> | Date | string
   session?: Prisma.XOR<Prisma.RtmpSessionScalarRelationFilter, Prisma.RtmpSessionWhereInput>
@@ -255,6 +265,7 @@ export type RtmpTranscriptEntryOrderByWithAggregationInput = {
   sessionId?: Prisma.SortOrder
   text?: Prisma.SortOrder
   lowConfidence?: Prisma.SortOrderInput | Prisma.SortOrder
+  speakerId?: Prisma.SortOrderInput | Prisma.SortOrder
   timestampMs?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   _count?: Prisma.RtmpTranscriptEntryCountOrderByAggregateInput
@@ -272,6 +283,7 @@ export type RtmpTranscriptEntryScalarWhereWithAggregatesInput = {
   sessionId?: Prisma.StringWithAggregatesFilter<"RtmpTranscriptEntry"> | string
   text?: Prisma.StringWithAggregatesFilter<"RtmpTranscriptEntry"> | string
   lowConfidence?: Prisma.BoolNullableWithAggregatesFilter<"RtmpTranscriptEntry"> | boolean | null
+  speakerId?: Prisma.UuidNullableWithAggregatesFilter<"RtmpTranscriptEntry"> | string | null
   timestampMs?: Prisma.IntWithAggregatesFilter<"RtmpTranscriptEntry"> | number
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"RtmpTranscriptEntry"> | Date | string
 }
@@ -280,6 +292,7 @@ export type RtmpTranscriptEntryCreateInput = {
   id?: string
   text: string
   lowConfidence?: boolean | null
+  speakerId?: string | null
   timestampMs: number
   createdAt?: Date | string
   session: Prisma.RtmpSessionCreateNestedOneWithoutEntriesInput
@@ -290,6 +303,7 @@ export type RtmpTranscriptEntryUncheckedCreateInput = {
   sessionId: string
   text: string
   lowConfidence?: boolean | null
+  speakerId?: string | null
   timestampMs: number
   createdAt?: Date | string
 }
@@ -298,6 +312,7 @@ export type RtmpTranscriptEntryUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   text?: Prisma.StringFieldUpdateOperationsInput | string
   lowConfidence?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  speakerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestampMs?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   session?: Prisma.RtmpSessionUpdateOneRequiredWithoutEntriesNestedInput
@@ -308,6 +323,7 @@ export type RtmpTranscriptEntryUncheckedUpdateInput = {
   sessionId?: Prisma.StringFieldUpdateOperationsInput | string
   text?: Prisma.StringFieldUpdateOperationsInput | string
   lowConfidence?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  speakerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestampMs?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -317,6 +333,7 @@ export type RtmpTranscriptEntryCreateManyInput = {
   sessionId: string
   text: string
   lowConfidence?: boolean | null
+  speakerId?: string | null
   timestampMs: number
   createdAt?: Date | string
 }
@@ -325,6 +342,7 @@ export type RtmpTranscriptEntryUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   text?: Prisma.StringFieldUpdateOperationsInput | string
   lowConfidence?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  speakerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestampMs?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -334,6 +352,7 @@ export type RtmpTranscriptEntryUncheckedUpdateManyInput = {
   sessionId?: Prisma.StringFieldUpdateOperationsInput | string
   text?: Prisma.StringFieldUpdateOperationsInput | string
   lowConfidence?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  speakerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestampMs?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -353,6 +372,7 @@ export type RtmpTranscriptEntryCountOrderByAggregateInput = {
   sessionId?: Prisma.SortOrder
   text?: Prisma.SortOrder
   lowConfidence?: Prisma.SortOrder
+  speakerId?: Prisma.SortOrder
   timestampMs?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
 }
@@ -366,6 +386,7 @@ export type RtmpTranscriptEntryMaxOrderByAggregateInput = {
   sessionId?: Prisma.SortOrder
   text?: Prisma.SortOrder
   lowConfidence?: Prisma.SortOrder
+  speakerId?: Prisma.SortOrder
   timestampMs?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
 }
@@ -375,6 +396,7 @@ export type RtmpTranscriptEntryMinOrderByAggregateInput = {
   sessionId?: Prisma.SortOrder
   text?: Prisma.SortOrder
   lowConfidence?: Prisma.SortOrder
+  speakerId?: Prisma.SortOrder
   timestampMs?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
 }
@@ -429,6 +451,7 @@ export type RtmpTranscriptEntryCreateWithoutSessionInput = {
   id?: string
   text: string
   lowConfidence?: boolean | null
+  speakerId?: string | null
   timestampMs: number
   createdAt?: Date | string
 }
@@ -437,6 +460,7 @@ export type RtmpTranscriptEntryUncheckedCreateWithoutSessionInput = {
   id?: string
   text: string
   lowConfidence?: boolean | null
+  speakerId?: string | null
   timestampMs: number
   createdAt?: Date | string
 }
@@ -475,6 +499,7 @@ export type RtmpTranscriptEntryScalarWhereInput = {
   sessionId?: Prisma.StringFilter<"RtmpTranscriptEntry"> | string
   text?: Prisma.StringFilter<"RtmpTranscriptEntry"> | string
   lowConfidence?: Prisma.BoolNullableFilter<"RtmpTranscriptEntry"> | boolean | null
+  speakerId?: Prisma.UuidNullableFilter<"RtmpTranscriptEntry"> | string | null
   timestampMs?: Prisma.IntFilter<"RtmpTranscriptEntry"> | number
   createdAt?: Prisma.DateTimeFilter<"RtmpTranscriptEntry"> | Date | string
 }
@@ -483,6 +508,7 @@ export type RtmpTranscriptEntryCreateManySessionInput = {
   id?: string
   text: string
   lowConfidence?: boolean | null
+  speakerId?: string | null
   timestampMs: number
   createdAt?: Date | string
 }
@@ -491,6 +517,7 @@ export type RtmpTranscriptEntryUpdateWithoutSessionInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   text?: Prisma.StringFieldUpdateOperationsInput | string
   lowConfidence?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  speakerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestampMs?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -499,6 +526,7 @@ export type RtmpTranscriptEntryUncheckedUpdateWithoutSessionInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   text?: Prisma.StringFieldUpdateOperationsInput | string
   lowConfidence?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  speakerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestampMs?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -507,6 +535,7 @@ export type RtmpTranscriptEntryUncheckedUpdateManyWithoutSessionInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   text?: Prisma.StringFieldUpdateOperationsInput | string
   lowConfidence?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  speakerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestampMs?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -518,6 +547,7 @@ export type RtmpTranscriptEntrySelect<ExtArgs extends runtime.Types.Extensions.I
   sessionId?: boolean
   text?: boolean
   lowConfidence?: boolean
+  speakerId?: boolean
   timestampMs?: boolean
   createdAt?: boolean
   session?: boolean | Prisma.RtmpSessionDefaultArgs<ExtArgs>
@@ -528,6 +558,7 @@ export type RtmpTranscriptEntrySelectCreateManyAndReturn<ExtArgs extends runtime
   sessionId?: boolean
   text?: boolean
   lowConfidence?: boolean
+  speakerId?: boolean
   timestampMs?: boolean
   createdAt?: boolean
   session?: boolean | Prisma.RtmpSessionDefaultArgs<ExtArgs>
@@ -538,6 +569,7 @@ export type RtmpTranscriptEntrySelectUpdateManyAndReturn<ExtArgs extends runtime
   sessionId?: boolean
   text?: boolean
   lowConfidence?: boolean
+  speakerId?: boolean
   timestampMs?: boolean
   createdAt?: boolean
   session?: boolean | Prisma.RtmpSessionDefaultArgs<ExtArgs>
@@ -548,11 +580,12 @@ export type RtmpTranscriptEntrySelectScalar = {
   sessionId?: boolean
   text?: boolean
   lowConfidence?: boolean
+  speakerId?: boolean
   timestampMs?: boolean
   createdAt?: boolean
 }
 
-export type RtmpTranscriptEntryOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "sessionId" | "text" | "lowConfidence" | "timestampMs" | "createdAt", ExtArgs["result"]["rtmpTranscriptEntry"]>
+export type RtmpTranscriptEntryOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "sessionId" | "text" | "lowConfidence" | "speakerId" | "timestampMs" | "createdAt", ExtArgs["result"]["rtmpTranscriptEntry"]>
 export type RtmpTranscriptEntryInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   session?: boolean | Prisma.RtmpSessionDefaultArgs<ExtArgs>
 }
@@ -573,6 +606,7 @@ export type $RtmpTranscriptEntryPayload<ExtArgs extends runtime.Types.Extensions
     sessionId: string
     text: string
     lowConfidence: boolean | null
+    speakerId: string | null
     timestampMs: number
     createdAt: Date
   }, ExtArgs["result"]["rtmpTranscriptEntry"]>
@@ -1003,6 +1037,7 @@ export interface RtmpTranscriptEntryFieldRefs {
   readonly sessionId: Prisma.FieldRef<"RtmpTranscriptEntry", 'String'>
   readonly text: Prisma.FieldRef<"RtmpTranscriptEntry", 'String'>
   readonly lowConfidence: Prisma.FieldRef<"RtmpTranscriptEntry", 'Boolean'>
+  readonly speakerId: Prisma.FieldRef<"RtmpTranscriptEntry", 'String'>
   readonly timestampMs: Prisma.FieldRef<"RtmpTranscriptEntry", 'Int'>
   readonly createdAt: Prisma.FieldRef<"RtmpTranscriptEntry", 'DateTime'>
 }

@@ -1445,6 +1445,7 @@ export const MuxTranscriptEntryScalarFieldEnum = {
   sessionId: 'sessionId',
   text: 'text',
   lowConfidence: 'lowConfidence',
+  speakerId: 'speakerId',
   timestampMs: 'timestampMs',
   createdAt: 'createdAt'
 } as const
@@ -1475,6 +1476,7 @@ export const RtmpTranscriptEntryScalarFieldEnum = {
   sessionId: 'sessionId',
   text: 'text',
   lowConfidence: 'lowConfidence',
+  speakerId: 'speakerId',
   timestampMs: 'timestampMs',
   createdAt: 'createdAt'
 } as const
@@ -1502,6 +1504,7 @@ export const SharedSessionEntryScalarFieldEnum = {
   sessionId: 'sessionId',
   text: 'text',
   lowConfidence: 'lowConfidence',
+  speakerId: 'speakerId',
   timestampMs: 'timestampMs',
   createdAt: 'createdAt'
 } as const
@@ -1532,6 +1535,7 @@ export const TranscriptSessionEntryScalarFieldEnum = {
   sessionId: 'sessionId',
   text: 'text',
   lowConfidence: 'lowConfidence',
+  speakerId: 'speakerId',
   timestampMs: 'timestampMs',
   createdAt: 'createdAt'
 } as const
@@ -1804,13 +1808,13 @@ export interface PrismaClientBaseOptions {
 
 /**
  * `PrismaClient` options for connecting to your database through Prisma Accelerate instead of a driver adapter.
- *
+ * 
  * Learn more: https://pris.ly/d/accelerate
  */
 export interface PrismaClientOptionsWithAccelerateUrl extends PrismaClientBaseOptions {
   /**
    * The Prisma Accelerate connection URL. Use this option to connect to your database through Prisma Accelerate instead of using a driver adapter to connect directly.
-   *
+   * 
    * Learn more: https://pris.ly/d/accelerate
    */
   accelerateUrl: string
@@ -1819,22 +1823,22 @@ export interface PrismaClientOptionsWithAccelerateUrl extends PrismaClientBaseOp
 
 /**
  * `PrismaClient` options for connecting to your database through a driver adapter. This is the common case in Prisma 7.
- *
+ * 
  * Learn more: https://pris.ly/d/driver-adapters
  */
 export interface PrismaClientOptionsWithAdapter extends PrismaClientBaseOptions {
   /**
    * A driver adapter that PrismaClient uses to connect to your database, such as the ones provided by `@prisma/adapter-pg`, `@prisma/adapter-libsql`, `@prisma/adapter-planetscale`, etc.
-   *
+   * 
    * A driver adapter is **required** unless you connect to your database through Prisma Accelerate (in which case use `accelerateUrl` instead).
-   *
+   * 
    * Learn more: https://pris.ly/d/driver-adapters
-   *
+   * 
    * @example
    * ```ts
    * import { PrismaPg } from '@prisma/adapter-pg'
    * import { PrismaClient } from './generated/prisma/client'
-   *
+   * 
    * const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL })
    * const prisma = new PrismaClient({ adapter })
    * ```
@@ -1845,9 +1849,9 @@ export interface PrismaClientOptionsWithAdapter extends PrismaClientBaseOptions 
 
 /**
  * Options passed to the `PrismaClient` constructor.
- *
+ * 
  * A driver adapter (or, alternatively, a Prisma Accelerate URL) is **required**. See {@link PrismaClientOptionsWithAdapter} and {@link PrismaClientOptionsWithAccelerateUrl} for the two variants. All other properties live in {@link PrismaClientBaseOptions} and are optional.
- *
+ * 
  * Learn more about driver adapters: https://pris.ly/d/driver-adapters
  */
 export type PrismaClientOptions = PrismaClientOptionsWithAccelerateUrl | PrismaClientOptionsWithAdapter
@@ -1926,3 +1930,4 @@ export type PrismaAction =
  * `PrismaClient` proxy available in interactive transactions.
  */
 export type TransactionClient = Omit<DefaultPrismaClient, runtime.ITXClientDenyList>
+

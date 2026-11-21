@@ -24,8 +24,8 @@ export async function POST(
       payload.action === "resume" ||
       payload.action === "stop"
     ) {
-      await updateLivestreamIngestSession(sessionId, payload.action)
-      return NextResponse.json({ ok: true })
+      const snapshot = await updateLivestreamIngestSession(sessionId, payload.action)
+      return NextResponse.json({ ok: true, snapshot })
     }
 
     return NextResponse.json({ error: "Unsupported action." }, { status: 400 })

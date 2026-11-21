@@ -1,11 +1,9 @@
 import "dotenv/config"
 
-import { createServer } from "node:http"
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 
-import { HOST, PORT, RTMP_INPUT_BASE_URL } from "@/ingest/src/config"
-import { ChunkedIngestSession } from "@/ingest/src/sessions/chunked-ingest-session"
-import { MicRealtimeBridge } from "@/ingest/src/sessions/mic-realtime-bridge"
-import { MuxQwenIngestSession } from "@/ingest/src/sessions/mux-qwen-ingest-session"
+import { HOST, MUX_AUDIO_FILTER, PORT, RTMP_INPUT_BASE_URL } from "@/ingest/src/config"
+import { MediaIngestSession } from "@/ingest/src/sessions/media-ingest-session"
 import {
   type ManagedSession,
   type MuxSessionPayload,
@@ -13,12 +11,11 @@ import {
   type SessionKind,
 } from "@/ingest/src/types"
 import { readJsonBody } from "@/ingest/src/utils/http"
+import { INGEST_CONTROL_HEADER } from "@/lib/ingest-control"
 import { livestreamSessionManager } from "@/lib/livestream-session-manager"
-import type { LivestreamMode } from "@/lib/livestream-types"
-import { verifyQwenLiveToken } from "@/lib/qwen-live-token"
-import { WebSocketServer } from "ws"
 
 const sessions = new Map<string, ManagedSession>()
+const sessionOperations = new Map<string, Promise<unknown>>()
 
 function getSessionMapKey(kind: SessionKind, sessionId: string) {
   return `${kind}:${sessionId}`
@@ -39,17 +36,23 @@ function isYouTubeUrl(value: string) {
   }
 }
 
-function isYouTubeControlAuthorized(request: import("node:http").IncomingMessage) {
+function isHttpUrl(value: unknown): value is string {
+  if (typeof value !== "string") return false
+  const url = URL.parse(value)
+  return url?.protocol === "http:" || url?.protocol === "https:"
+}
+
+function isControlAuthorized(request: IncomingMessage) {
   const expectedSecret = process.env.INGEST_CONTROL_SECRET?.trim()
   if (!expectedSecret) {
     return process.env.NODE_ENV !== "production"
   }
 
-  return request.headers["x-salomon-ingest-secret"] === expectedSecret
+  return request.headers[INGEST_CONTROL_HEADER] === expectedSecret
 }
 
 function writeJson(
-  response: import("node:http").ServerResponse,
+  response: ServerResponse,
   status: number,
   payload: unknown
 ) {
@@ -57,62 +60,60 @@ function writeJson(
   response.end(JSON.stringify(payload))
 }
 
-async function createOrReplaceSession(
-  kind: SessionKind,
-  sessionId: string,
-  session: ManagedSession
-) {
-  const key = getSessionMapKey(kind, sessionId)
-  const previous = sessions.get(key)
-  if (previous) {
-    await previous.stop()
-    sessions.delete(key)
-  }
-
-  sessions.set(key, session)
-  session.start()
+function runSessionOperation<T>(key: string, operation: () => Promise<T>) {
+  const previous = sessionOperations.get(key) ?? Promise.resolve()
+  const next = previous.catch(() => undefined).then(operation)
+  sessionOperations.set(key, next)
+  return next.finally(() => {
+    if (sessionOperations.get(key) === next) sessionOperations.delete(key)
+  })
 }
 
-async function stopSession(
-  kind: SessionKind,
-  sessionId: string,
-  options?: { notifyApp?: boolean }
-) {
+function createOrReplaceSession(kind: SessionKind, sessionId: string, session: ManagedSession) {
   const key = getSessionMapKey(kind, sessionId)
-  const session = sessions.get(key)
-
-  if (!session) {
-    return false
-  }
-
-  await session.stop(options)
-  sessions.delete(key)
-  return true
+  return runSessionOperation(key, async () => {
+    await sessions.get(key)?.stop({ notifyApp: false })
+    sessions.set(key, session)
+    await session.start()
+  })
 }
 
-const server = createServer(async (incomingRequest, outgoingResponse) => {
+function stopSession(
+  kind: SessionKind,
+  sessionId: string,
+  expectedSession?: ManagedSession
+) {
+  const key = getSessionMapKey(kind, sessionId)
+  return runSessionOperation(key, async () => {
+    const session = sessions.get(key)
+    if (!session || (expectedSession && session !== expectedSession)) return false
+
+    try {
+      await session.stop({ notifyApp: !expectedSession })
+      return true
+    } finally {
+      sessions.delete(key)
+    }
+  })
+}
+
+async function handleRequest(incomingRequest: IncomingMessage, outgoingResponse: ServerResponse) {
   const method = incomingRequest.method || "GET"
   const url = new URL(incomingRequest.url || "/", `http://127.0.0.1:${PORT}`)
 
   if (method === "GET" && url.pathname === "/health") {
-    outgoingResponse.writeHead(200, { "Content-Type": "application/json" })
-    outgoingResponse.end(JSON.stringify({ ok: true }))
+    writeJson(outgoingResponse, 200, { ok: true })
+    return
+  }
+
+  if (method === "POST" && !isControlAuthorized(incomingRequest)) {
+    writeJson(outgoingResponse, 401, { error: "Ingest control request is unauthorized." })
     return
   }
 
   if (method === "POST" && url.pathname === "/youtube-sessions") {
-    if (!isYouTubeControlAuthorized(incomingRequest)) {
-      writeJson(outgoingResponse, 401, {
-        error: "Livestream ingest control request is unauthorized.",
-      })
-      return
-    }
-
-    const body = (await readJsonBody(incomingRequest)) as
-      | { mode?: LivestreamMode; streamUrl?: string }
-      | null
+    const body = await readJsonBody(incomingRequest)
     const streamUrl = typeof body?.streamUrl === "string" ? body.streamUrl.trim() : ""
-    const mode = body?.mode === "sermon" ? "sermon" : "conversation"
 
     if (!streamUrl || !isYouTubeUrl(streamUrl)) {
       writeJson(outgoingResponse, 400, {
@@ -122,7 +123,7 @@ const server = createServer(async (incomingRequest, outgoingResponse) => {
     }
 
     try {
-      const session = await livestreamSessionManager.createSession({ mode, streamUrl })
+      const session = await livestreamSessionManager.createSession(streamUrl)
       writeJson(outgoingResponse, 200, { sessionId: session.getSnapshot().id })
     } catch (error) {
       writeJson(outgoingResponse, 500, {
@@ -166,7 +167,7 @@ const server = createServer(async (incomingRequest, outgoingResponse) => {
       }
 
       if (event.type === "partial") {
-        send("partial", { text: event.text })
+        send("partial", { captions: event.captions })
         return
       }
 
@@ -196,13 +197,6 @@ const server = createServer(async (incomingRequest, outgoingResponse) => {
     /^\/youtube-sessions\/([^/]+)\/control$/u
   )
   if (method === "POST" && youtubeControlMatch) {
-    if (!isYouTubeControlAuthorized(incomingRequest)) {
-      writeJson(outgoingResponse, 401, {
-        error: "Livestream ingest control request is unauthorized.",
-      })
-      return
-    }
-
     const sessionId = decodeURIComponent(youtubeControlMatch[1])
     const session = livestreamSessionManager.getSession(sessionId)
     if (!session) {
@@ -221,6 +215,8 @@ const server = createServer(async (incomingRequest, outgoingResponse) => {
         await session.resume()
       } else if (body?.action === "stop") {
         await livestreamSessionManager.stopSession(sessionId)
+        writeJson(outgoingResponse, 200, { ok: true, snapshot: session.getSnapshot() })
+        return
       } else {
         writeJson(outgoingResponse, 400, { error: "Unsupported action." })
         return
@@ -242,36 +238,31 @@ const server = createServer(async (incomingRequest, outgoingResponse) => {
     const body = (await readJsonBody(incomingRequest)) as Partial<RtmpSessionPayload> | null
 
     if (
-      !body?.appBaseUrl ||
-      !body?.ingestToken ||
-      !body?.sessionId ||
-      !body?.streamKey
+      !isHttpUrl(body?.appBaseUrl) ||
+      typeof body?.ingestToken !== "string" || !body.ingestToken ||
+      typeof body.sessionId !== "string" || !body.sessionId ||
+      typeof body.streamKey !== "string" || !body.streamKey
     ) {
-      outgoingResponse.writeHead(400, { "Content-Type": "application/json" })
-      outgoingResponse.end(JSON.stringify({ error: "Invalid RTMP session payload." }))
+      writeJson(outgoingResponse, 400, { error: "Invalid RTMP session payload." })
       return
     }
 
     const sessionId = body.sessionId
-    const inputUrl = `${RTMP_INPUT_BASE_URL.replace(/\/+$/u, "")}/${body.streamKey}`
-    const session = new ChunkedIngestSession({
+    const sessionPath = `/api/rtmp-sessions/${encodeURIComponent(sessionId)}`
+    const inputUrl = `${RTMP_INPUT_BASE_URL.replace(/\/+$/u, "")}/${encodeURIComponent(body.streamKey)}`
+    const session = new MediaIngestSession({
       appBaseUrl: body.appBaseUrl,
-      chunkPath: `/api/rtmp-sessions/${sessionId}/chunk`,
+      entriesPath: `${sessionPath}/entries`,
       ingestToken: body.ingestToken,
       inputUrl,
-      kind: "rtmp",
-      onStopFromControlPlane: async () => {
-        await stopSession("rtmp", sessionId, { notifyApp: false })
-      },
-      perfPath: undefined,
+      onStopFromControlPlane: (active) => stopSession("rtmp", sessionId, active),
       sessionId,
-      statusPath: `/api/rtmp-sessions/${sessionId}/status`,
+      statusPath: `${sessionPath}/status`,
     })
 
     await createOrReplaceSession("rtmp", sessionId, session)
 
-    outgoingResponse.writeHead(200, { "Content-Type": "application/json" })
-    outgoingResponse.end(JSON.stringify({ ok: true }))
+    writeJson(outgoingResponse, 200, { ok: true })
     return
   }
 
@@ -279,114 +270,74 @@ const server = createServer(async (incomingRequest, outgoingResponse) => {
     const body = (await readJsonBody(incomingRequest)) as Partial<MuxSessionPayload> | null
 
     if (
-      !body?.appBaseUrl ||
-      !body?.ingestToken ||
-      !body?.sessionId ||
-      !body?.playbackUrl
+      !isHttpUrl(body?.appBaseUrl) ||
+      typeof body?.ingestToken !== "string" || !body.ingestToken ||
+      typeof body.sessionId !== "string" || !body.sessionId ||
+      !isHttpUrl(body.playbackUrl)
     ) {
-      outgoingResponse.writeHead(400, { "Content-Type": "application/json" })
-      outgoingResponse.end(JSON.stringify({ error: "Invalid Mux session payload." }))
+      writeJson(outgoingResponse, 400, { error: "Invalid Mux session payload." })
       return
     }
 
     const sessionId = body.sessionId
-    const session = new MuxQwenIngestSession({
+    const sessionPath = `/api/mux/live-streams/${encodeURIComponent(sessionId)}`
+    const session = new MediaIngestSession({
       appBaseUrl: body.appBaseUrl,
-      entriesPath: `/api/mux/live-streams/${sessionId}/entries`,
+      audioFilter: MUX_AUDIO_FILTER,
+      entriesPath: `${sessionPath}/entries`,
       ingestToken: body.ingestToken,
       inputUrl: body.playbackUrl,
-      onStopFromControlPlane: async () => {
-        await stopSession("mux", sessionId, { notifyApp: false })
-      },
-      perfPath: `/api/mux/live-streams/${sessionId}/perf`,
+      onStopFromControlPlane: (active) => stopSession("mux", sessionId, active),
+      perfPath: `${sessionPath}/perf`,
       sessionId,
-      statusPath: `/api/mux/live-streams/${sessionId}/status`,
+      statusPath: `${sessionPath}/status`,
     })
 
     await createOrReplaceSession("mux", sessionId, session)
 
-    outgoingResponse.writeHead(200, { "Content-Type": "application/json" })
-    outgoingResponse.end(JSON.stringify({ ok: true }))
+    writeJson(outgoingResponse, 200, { ok: true })
     return
   }
 
   if (method === "POST" && /^\/sessions\/[^/]+\/stop$/u.test(url.pathname)) {
-    const sessionId = url.pathname.split("/")[2]
+    const sessionId = decodeURIComponent(url.pathname.split("/")[2])
     const stopped = await stopSession("rtmp", sessionId)
 
     if (!stopped) {
-      outgoingResponse.writeHead(404, { "Content-Type": "application/json" })
-      outgoingResponse.end(JSON.stringify({ error: "Session not found." }))
+      writeJson(outgoingResponse, 404, { error: "Session not found." })
       return
     }
 
-    outgoingResponse.writeHead(200, { "Content-Type": "application/json" })
-    outgoingResponse.end(JSON.stringify({ ok: true }))
+    writeJson(outgoingResponse, 200, { ok: true })
     return
   }
 
   if (method === "POST" && /^\/mux-sessions\/[^/]+\/stop$/u.test(url.pathname)) {
-    const sessionId = url.pathname.split("/")[2]
+    const sessionId = decodeURIComponent(url.pathname.split("/")[2])
     const stopped = await stopSession("mux", sessionId)
 
     if (!stopped) {
-      outgoingResponse.writeHead(404, { "Content-Type": "application/json" })
-      outgoingResponse.end(JSON.stringify({ error: "Session not found." }))
+      writeJson(outgoingResponse, 404, { error: "Session not found." })
       return
     }
 
-    outgoingResponse.writeHead(200, { "Content-Type": "application/json" })
-    outgoingResponse.end(JSON.stringify({ ok: true }))
+    writeJson(outgoingResponse, 200, { ok: true })
     return
   }
 
-  outgoingResponse.writeHead(404, { "Content-Type": "application/json" })
-  outgoingResponse.end(JSON.stringify({ error: "Not found." }))
-})
+  writeJson(outgoingResponse, 404, { error: "Not found." })
+}
 
-const micRealtimeServer = new WebSocketServer({ noServer: true })
-
-server.on("upgrade", (request, socket, head) => {
-  const url = new URL(request.url || "/", `http://127.0.0.1:${PORT}`)
-  if (url.pathname !== "/mic-realtime") {
-    socket.destroy()
-    return
-  }
-
-  const token = url.searchParams.get("token")?.trim() || ""
-  const payload = token ? verifyQwenLiveToken(token) : null
-  if (!payload) {
-    socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n")
-    socket.destroy()
-    return
-  }
-
-  micRealtimeServer.handleUpgrade(request, socket, head, (browserSocket) => {
-    const bridge = new MicRealtimeBridge(browserSocket, payload)
-
-    void bridge
-      .start()
-      .then(() => {
-        browserSocket.on("message", (message, isBinary) => {
-          bridge.handleBrowserMessage(message, isBinary)
-        })
-
-        browserSocket.on("close", () => {
-          void bridge.stop()
-        })
-
-        browserSocket.on("error", () => {
-          void bridge.stop()
-        })
-      })
-      .catch((error) => {
-        const message =
-          error instanceof Error ? error.message : "Unable to start Qwen realtime."
-        if (browserSocket.readyState === browserSocket.OPEN) {
-          browserSocket.send(JSON.stringify({ error: message, type: "error" }))
-          browserSocket.close()
-        }
-      })
+const server = createServer((request, response) => {
+  void handleRequest(request, response).catch((error: unknown) => {
+    if (response.headersSent) {
+      response.end()
+    } else if (error instanceof URIError) {
+      writeJson(response, 400, { error: "Invalid session identifier." })
+    } else {
+      console.error("[Ingest] Request failed", error)
+      writeJson(response, 500, { error: "Ingest request failed." })
+    }
   })
 })
 

@@ -1,4 +1,4 @@
-import type { TranscriptEntry } from "@/components/transcriber-ui"
+import type { TranscriptEntry } from "@/lib/transcript-types"
 
 export type MuxProcessingStatus =
   | "connecting"
@@ -11,30 +11,9 @@ export type MuxProcessingStatus =
 export type MuxLiveStatus = "active" | "deleted" | "disabled" | "idle"
 
 export interface MuxPerfTrace {
-  cfRay?: string
-  classifierDecision?: "mixed" | "music" | "speech"
-  contextChars?: number
-  contextTruncated?: boolean
-  fetchRoundTripMs?: number
-  groqMs?: number
   id: string
-  lowConfidence?: boolean
-  musicScore?: number
-  networkOverheadMs?: number
-  promptChars?: number
-  queueWaitMs?: number
-  responseSkipped: boolean
-  segmentDurationMs: number
-  serverClassifierMs?: number
-  serverTotalMs?: number
-  source: "mux-hls"
-  speechScore?: number
-  status: "completed" | "failed" | "skipped"
+  partialToFinalMs?: number
   textLength?: number
-  topLabel?: string
-  wavEncodeMs?: number
-  workerTotalMs: number
-  xGroqRegion?: string
 }
 
 export interface MuxSessionSnapshot {

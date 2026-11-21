@@ -17,6 +17,25 @@ function normalizeStatus(input: string | undefined): RtmpSessionStatus | null {
   }
 }
 
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ sessionId: string }> }
+) {
+  const { sessionId } = await params
+  const ingestToken = request.headers.get("x-salomon-ingest-token")?.trim() || ""
+
+  if (!ingestToken) {
+    return NextResponse.json({ error: "Missing ingest token." }, { status: 401 })
+  }
+
+  const session = await rtmpSessionManager.getIngestSession(sessionId, ingestToken)
+  if (!session) {
+    return NextResponse.json({ error: "RTMP session not found." }, { status: 404 })
+  }
+
+  return NextResponse.json({ currentStatus: session.status })
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ sessionId: string }> }

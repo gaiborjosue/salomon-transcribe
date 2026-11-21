@@ -39,6 +39,7 @@ export type MuxTranscriptEntryMinAggregateOutputType = {
   sessionId: string | null
   text: string | null
   lowConfidence: boolean | null
+  speakerId: string | null
   timestampMs: number | null
   createdAt: Date | null
 }
@@ -48,6 +49,7 @@ export type MuxTranscriptEntryMaxAggregateOutputType = {
   sessionId: string | null
   text: string | null
   lowConfidence: boolean | null
+  speakerId: string | null
   timestampMs: number | null
   createdAt: Date | null
 }
@@ -57,6 +59,7 @@ export type MuxTranscriptEntryCountAggregateOutputType = {
   sessionId: number
   text: number
   lowConfidence: number
+  speakerId: number
   timestampMs: number
   createdAt: number
   _all: number
@@ -76,6 +79,7 @@ export type MuxTranscriptEntryMinAggregateInputType = {
   sessionId?: true
   text?: true
   lowConfidence?: true
+  speakerId?: true
   timestampMs?: true
   createdAt?: true
 }
@@ -85,6 +89,7 @@ export type MuxTranscriptEntryMaxAggregateInputType = {
   sessionId?: true
   text?: true
   lowConfidence?: true
+  speakerId?: true
   timestampMs?: true
   createdAt?: true
 }
@@ -94,6 +99,7 @@ export type MuxTranscriptEntryCountAggregateInputType = {
   sessionId?: true
   text?: true
   lowConfidence?: true
+  speakerId?: true
   timestampMs?: true
   createdAt?: true
   _all?: true
@@ -190,6 +196,7 @@ export type MuxTranscriptEntryGroupByOutputType = {
   sessionId: string
   text: string
   lowConfidence: boolean | null
+  speakerId: string | null
   timestampMs: number
   createdAt: Date
   _count: MuxTranscriptEntryCountAggregateOutputType | null
@@ -222,6 +229,7 @@ export type MuxTranscriptEntryWhereInput = {
   sessionId?: Prisma.StringFilter<"MuxTranscriptEntry"> | string
   text?: Prisma.StringFilter<"MuxTranscriptEntry"> | string
   lowConfidence?: Prisma.BoolNullableFilter<"MuxTranscriptEntry"> | boolean | null
+  speakerId?: Prisma.UuidNullableFilter<"MuxTranscriptEntry"> | string | null
   timestampMs?: Prisma.IntFilter<"MuxTranscriptEntry"> | number
   createdAt?: Prisma.DateTimeFilter<"MuxTranscriptEntry"> | Date | string
   session?: Prisma.XOR<Prisma.MuxLiveSessionScalarRelationFilter, Prisma.MuxLiveSessionWhereInput>
@@ -232,6 +240,7 @@ export type MuxTranscriptEntryOrderByWithRelationInput = {
   sessionId?: Prisma.SortOrder
   text?: Prisma.SortOrder
   lowConfidence?: Prisma.SortOrderInput | Prisma.SortOrder
+  speakerId?: Prisma.SortOrderInput | Prisma.SortOrder
   timestampMs?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   session?: Prisma.MuxLiveSessionOrderByWithRelationInput
@@ -245,6 +254,7 @@ export type MuxTranscriptEntryWhereUniqueInput = Prisma.AtLeast<{
   sessionId?: Prisma.StringFilter<"MuxTranscriptEntry"> | string
   text?: Prisma.StringFilter<"MuxTranscriptEntry"> | string
   lowConfidence?: Prisma.BoolNullableFilter<"MuxTranscriptEntry"> | boolean | null
+  speakerId?: Prisma.UuidNullableFilter<"MuxTranscriptEntry"> | string | null
   timestampMs?: Prisma.IntFilter<"MuxTranscriptEntry"> | number
   createdAt?: Prisma.DateTimeFilter<"MuxTranscriptEntry"> | Date | string
   session?: Prisma.XOR<Prisma.MuxLiveSessionScalarRelationFilter, Prisma.MuxLiveSessionWhereInput>
@@ -255,6 +265,7 @@ export type MuxTranscriptEntryOrderByWithAggregationInput = {
   sessionId?: Prisma.SortOrder
   text?: Prisma.SortOrder
   lowConfidence?: Prisma.SortOrderInput | Prisma.SortOrder
+  speakerId?: Prisma.SortOrderInput | Prisma.SortOrder
   timestampMs?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   _count?: Prisma.MuxTranscriptEntryCountOrderByAggregateInput
@@ -272,6 +283,7 @@ export type MuxTranscriptEntryScalarWhereWithAggregatesInput = {
   sessionId?: Prisma.StringWithAggregatesFilter<"MuxTranscriptEntry"> | string
   text?: Prisma.StringWithAggregatesFilter<"MuxTranscriptEntry"> | string
   lowConfidence?: Prisma.BoolNullableWithAggregatesFilter<"MuxTranscriptEntry"> | boolean | null
+  speakerId?: Prisma.UuidNullableWithAggregatesFilter<"MuxTranscriptEntry"> | string | null
   timestampMs?: Prisma.IntWithAggregatesFilter<"MuxTranscriptEntry"> | number
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"MuxTranscriptEntry"> | Date | string
 }
@@ -280,6 +292,7 @@ export type MuxTranscriptEntryCreateInput = {
   id?: string
   text: string
   lowConfidence?: boolean | null
+  speakerId?: string | null
   timestampMs: number
   createdAt?: Date | string
   session: Prisma.MuxLiveSessionCreateNestedOneWithoutEntriesInput
@@ -290,6 +303,7 @@ export type MuxTranscriptEntryUncheckedCreateInput = {
   sessionId: string
   text: string
   lowConfidence?: boolean | null
+  speakerId?: string | null
   timestampMs: number
   createdAt?: Date | string
 }
@@ -298,6 +312,7 @@ export type MuxTranscriptEntryUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   text?: Prisma.StringFieldUpdateOperationsInput | string
   lowConfidence?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  speakerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestampMs?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   session?: Prisma.MuxLiveSessionUpdateOneRequiredWithoutEntriesNestedInput
@@ -308,6 +323,7 @@ export type MuxTranscriptEntryUncheckedUpdateInput = {
   sessionId?: Prisma.StringFieldUpdateOperationsInput | string
   text?: Prisma.StringFieldUpdateOperationsInput | string
   lowConfidence?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  speakerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestampMs?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -317,6 +333,7 @@ export type MuxTranscriptEntryCreateManyInput = {
   sessionId: string
   text: string
   lowConfidence?: boolean | null
+  speakerId?: string | null
   timestampMs: number
   createdAt?: Date | string
 }
@@ -325,6 +342,7 @@ export type MuxTranscriptEntryUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   text?: Prisma.StringFieldUpdateOperationsInput | string
   lowConfidence?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  speakerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestampMs?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -334,6 +352,7 @@ export type MuxTranscriptEntryUncheckedUpdateManyInput = {
   sessionId?: Prisma.StringFieldUpdateOperationsInput | string
   text?: Prisma.StringFieldUpdateOperationsInput | string
   lowConfidence?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  speakerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestampMs?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -353,6 +372,7 @@ export type MuxTranscriptEntryCountOrderByAggregateInput = {
   sessionId?: Prisma.SortOrder
   text?: Prisma.SortOrder
   lowConfidence?: Prisma.SortOrder
+  speakerId?: Prisma.SortOrder
   timestampMs?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
 }
@@ -366,6 +386,7 @@ export type MuxTranscriptEntryMaxOrderByAggregateInput = {
   sessionId?: Prisma.SortOrder
   text?: Prisma.SortOrder
   lowConfidence?: Prisma.SortOrder
+  speakerId?: Prisma.SortOrder
   timestampMs?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
 }
@@ -375,6 +396,7 @@ export type MuxTranscriptEntryMinOrderByAggregateInput = {
   sessionId?: Prisma.SortOrder
   text?: Prisma.SortOrder
   lowConfidence?: Prisma.SortOrder
+  speakerId?: Prisma.SortOrder
   timestampMs?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
 }
@@ -441,6 +463,7 @@ export type MuxTranscriptEntryCreateWithoutSessionInput = {
   id?: string
   text: string
   lowConfidence?: boolean | null
+  speakerId?: string | null
   timestampMs: number
   createdAt?: Date | string
 }
@@ -449,6 +472,7 @@ export type MuxTranscriptEntryUncheckedCreateWithoutSessionInput = {
   id?: string
   text: string
   lowConfidence?: boolean | null
+  speakerId?: string | null
   timestampMs: number
   createdAt?: Date | string
 }
@@ -487,6 +511,7 @@ export type MuxTranscriptEntryScalarWhereInput = {
   sessionId?: Prisma.StringFilter<"MuxTranscriptEntry"> | string
   text?: Prisma.StringFilter<"MuxTranscriptEntry"> | string
   lowConfidence?: Prisma.BoolNullableFilter<"MuxTranscriptEntry"> | boolean | null
+  speakerId?: Prisma.UuidNullableFilter<"MuxTranscriptEntry"> | string | null
   timestampMs?: Prisma.IntFilter<"MuxTranscriptEntry"> | number
   createdAt?: Prisma.DateTimeFilter<"MuxTranscriptEntry"> | Date | string
 }
@@ -495,6 +520,7 @@ export type MuxTranscriptEntryCreateManySessionInput = {
   id?: string
   text: string
   lowConfidence?: boolean | null
+  speakerId?: string | null
   timestampMs: number
   createdAt?: Date | string
 }
@@ -503,6 +529,7 @@ export type MuxTranscriptEntryUpdateWithoutSessionInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   text?: Prisma.StringFieldUpdateOperationsInput | string
   lowConfidence?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  speakerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestampMs?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -511,6 +538,7 @@ export type MuxTranscriptEntryUncheckedUpdateWithoutSessionInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   text?: Prisma.StringFieldUpdateOperationsInput | string
   lowConfidence?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  speakerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestampMs?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -519,6 +547,7 @@ export type MuxTranscriptEntryUncheckedUpdateManyWithoutSessionInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   text?: Prisma.StringFieldUpdateOperationsInput | string
   lowConfidence?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  speakerId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   timestampMs?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -530,6 +559,7 @@ export type MuxTranscriptEntrySelect<ExtArgs extends runtime.Types.Extensions.In
   sessionId?: boolean
   text?: boolean
   lowConfidence?: boolean
+  speakerId?: boolean
   timestampMs?: boolean
   createdAt?: boolean
   session?: boolean | Prisma.MuxLiveSessionDefaultArgs<ExtArgs>
@@ -540,6 +570,7 @@ export type MuxTranscriptEntrySelectCreateManyAndReturn<ExtArgs extends runtime.
   sessionId?: boolean
   text?: boolean
   lowConfidence?: boolean
+  speakerId?: boolean
   timestampMs?: boolean
   createdAt?: boolean
   session?: boolean | Prisma.MuxLiveSessionDefaultArgs<ExtArgs>
@@ -550,6 +581,7 @@ export type MuxTranscriptEntrySelectUpdateManyAndReturn<ExtArgs extends runtime.
   sessionId?: boolean
   text?: boolean
   lowConfidence?: boolean
+  speakerId?: boolean
   timestampMs?: boolean
   createdAt?: boolean
   session?: boolean | Prisma.MuxLiveSessionDefaultArgs<ExtArgs>
@@ -560,11 +592,12 @@ export type MuxTranscriptEntrySelectScalar = {
   sessionId?: boolean
   text?: boolean
   lowConfidence?: boolean
+  speakerId?: boolean
   timestampMs?: boolean
   createdAt?: boolean
 }
 
-export type MuxTranscriptEntryOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "sessionId" | "text" | "lowConfidence" | "timestampMs" | "createdAt", ExtArgs["result"]["muxTranscriptEntry"]>
+export type MuxTranscriptEntryOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "sessionId" | "text" | "lowConfidence" | "speakerId" | "timestampMs" | "createdAt", ExtArgs["result"]["muxTranscriptEntry"]>
 export type MuxTranscriptEntryInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   session?: boolean | Prisma.MuxLiveSessionDefaultArgs<ExtArgs>
 }
@@ -585,6 +618,7 @@ export type $MuxTranscriptEntryPayload<ExtArgs extends runtime.Types.Extensions.
     sessionId: string
     text: string
     lowConfidence: boolean | null
+    speakerId: string | null
     timestampMs: number
     createdAt: Date
   }, ExtArgs["result"]["muxTranscriptEntry"]>
@@ -1015,6 +1049,7 @@ export interface MuxTranscriptEntryFieldRefs {
   readonly sessionId: Prisma.FieldRef<"MuxTranscriptEntry", 'String'>
   readonly text: Prisma.FieldRef<"MuxTranscriptEntry", 'String'>
   readonly lowConfidence: Prisma.FieldRef<"MuxTranscriptEntry", 'Boolean'>
+  readonly speakerId: Prisma.FieldRef<"MuxTranscriptEntry", 'String'>
   readonly timestampMs: Prisma.FieldRef<"MuxTranscriptEntry", 'Int'>
   readonly createdAt: Prisma.FieldRef<"MuxTranscriptEntry", 'DateTime'>
 }

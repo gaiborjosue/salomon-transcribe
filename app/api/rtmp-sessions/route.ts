@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 
 import { getApiSession } from "@/lib/api-auth"
-import { warmServerAudioClassifier } from "@/lib/audio-content-classifier"
 import { rtmpSessionManager } from "@/lib/rtmp-session-manager"
 import { startRtmpIngestSession } from "@/lib/rtmp-ingest-client"
 
@@ -49,7 +48,6 @@ export async function POST(request: Request) {
       "http://localhost:3000"
 
     try {
-      await warmServerAudioClassifier()
       await startRtmpIngestSession({
         appBaseUrl,
         ingestToken: session.ingestToken,

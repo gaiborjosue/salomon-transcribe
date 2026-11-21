@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 
+import { parseTranscriptSpeakerId } from "@/lib/transcript-types"
+
 import { muxSessionManager } from "@/lib/mux-session-manager"
 
 export async function POST(
@@ -15,7 +17,7 @@ export async function POST(
 
   try {
     const payload = (await request.json().catch(() => null)) as
-      | { lowConfidence?: boolean; text?: string }
+      | { lowConfidence?: boolean; speakerId?: unknown; text?: string }
       | null
 
     if (typeof payload?.text !== "string" || !payload.text.trim()) {
@@ -25,6 +27,7 @@ export async function POST(
     const appended = await muxSessionManager.appendEntry({
       ingestToken,
       lowConfidence: payload.lowConfidence === true,
+      speakerId: parseTranscriptSpeakerId(payload.speakerId),
       sessionId: liveStreamId,
       text: payload.text,
     })

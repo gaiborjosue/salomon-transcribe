@@ -1,4 +1,4 @@
-import type { TranscriptEntry } from "@/components/transcriber-ui"
+import type { TranscriptEntry } from "@/lib/transcript-types"
 import {
   mergeTranscriptEntry,
   shouldMergeIntoPrevious,
@@ -11,7 +11,10 @@ export function appendMergedTranscriptEntry(
 ) {
   const previousEntry = entries[entries.length - 1]
 
-  if (!shouldMergeIntoPrevious(previousEntry, entry.text, transcriptionMode)) {
+  if (
+    previousEntry?.speakerId !== entry.speakerId ||
+    !shouldMergeIntoPrevious(previousEntry, entry.text, transcriptionMode)
+  ) {
     return [...entries, entry]
   }
 

@@ -11,11 +11,8 @@ function isMuxPerfTrace(value: unknown): value is MuxPerfTrace {
   const candidate = value as Partial<MuxPerfTrace>
   return (
     typeof candidate.id === "string" &&
-    typeof candidate.segmentDurationMs === "number" &&
-    typeof candidate.source === "string" &&
-    typeof candidate.status === "string" &&
-    typeof candidate.responseSkipped === "boolean" &&
-    typeof candidate.workerTotalMs === "number"
+    (candidate.partialToFinalMs === undefined || Number.isFinite(candidate.partialToFinalMs)) &&
+    (candidate.textLength === undefined || Number.isSafeInteger(candidate.textLength))
   )
 }
 

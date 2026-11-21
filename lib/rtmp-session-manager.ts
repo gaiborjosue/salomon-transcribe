@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 
-import type { TranscriptEntry } from "@/components/transcriber-ui"
+import type { TranscriptEntry } from "@/lib/transcript-types"
 import prisma from "@/lib/prisma"
 import type {
   RtmpSessionSnapshot,
@@ -63,12 +63,14 @@ class RtmpSessionManager {
   private toEntry(entry: {
     id: string
     lowConfidence: boolean | null
+    speakerId: string | null
     text: string
     timestampMs: number
   }): TranscriptEntry {
     return {
       id: entry.id,
       lowConfidence: entry.lowConfidence ?? undefined,
+      speakerId: entry.speakerId ?? undefined,
       text: entry.text,
       timestampMs: entry.timestampMs,
     }
@@ -112,7 +114,7 @@ class RtmpSessionManager {
   private async loadRecentEntries(sessionId: string) {
     const rows = await prisma.rtmpTranscriptEntry.findMany({
       where: { sessionId },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: MAX_ENTRIES,
     })
 
@@ -337,11 +339,13 @@ class RtmpSessionManager {
   async appendEntry({
     ingestToken,
     lowConfidence,
+    speakerId,
     sessionId,
     text,
   }: {
     ingestToken: string
     lowConfidence?: boolean
+    speakerId?: string
     sessionId: string
     text: string
   }) {
@@ -372,10 +376,13 @@ class RtmpSessionManager {
     const previousEntry = await prisma.rtmpTranscriptEntry.findFirst({
       where: { sessionId },
       orderBy: { createdAt: "desc" },
-      select: { text: true },
+      select: { speakerId: true, text: true },
     })
 
-    const dedupedText = dedupeBoundaryText(previousEntry?.text ?? "", normalizedText)
+    const dedupedText = dedupeBoundaryText(
+      previousEntry?.speakerId === (speakerId ?? null) ? previousEntry.text : "",
+      normalizedText
+    )
     if (!dedupedText) {
       return true
     }
@@ -384,6 +391,7 @@ class RtmpSessionManager {
       const entry = await tx.rtmpTranscriptEntry.create({
         data: {
           lowConfidence,
+          speakerId,
           sessionId,
           text: dedupedText,
           timestampMs: Date.now() - session.createdAt.getTime(),

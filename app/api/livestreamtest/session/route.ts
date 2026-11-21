@@ -2,7 +2,6 @@ import { NextResponse } from "next/server"
 
 import { getApiSession } from "@/lib/api-auth"
 import { startLivestreamIngestSession } from "@/lib/livestream-ingest-client"
-import type { LivestreamMode } from "@/lib/livestream-types"
 
 export async function POST(request: Request) {
   const session = await getApiSession(request)
@@ -11,17 +10,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const payload = (await request.json()) as {
-      mode?: LivestreamMode
-      streamUrl?: string
-      transcriptionMode?: LivestreamMode
-    }
-
-    const streamUrl = typeof payload.streamUrl === "string" ? payload.streamUrl.trim() : ""
-    const mode =
-      payload.transcriptionMode === "sermon" || payload.mode === "sermon"
-        ? "sermon"
-        : "conversation"
+    const payload = (await request.json().catch(() => null)) as { streamUrl?: unknown } | null
+    const streamUrl = typeof payload?.streamUrl === "string" ? payload.streamUrl.trim() : ""
 
     if (!streamUrl) {
       return NextResponse.json(
@@ -30,10 +20,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const sessionId = await startLivestreamIngestSession({
-      mode,
-      streamUrl,
-    })
+    const sessionId = await startLivestreamIngestSession(streamUrl)
 
     return NextResponse.json({
       sessionId,

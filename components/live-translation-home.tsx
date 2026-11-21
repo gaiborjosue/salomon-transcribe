@@ -145,6 +145,7 @@ export default function LiveTranslationHome() {
   const viewerEventSourceRef = useRef<EventSource | null>(null)
   const hostSessionEventsRef = useRef<EventSource | null>(null)
   const transcriptEntriesRef = useRef<TranscriptEntry[]>([])
+  const stoppingRef = useRef(false)
   const lastHostSyncSignatureRef = useRef("")
   const hasAttemptedClipboardPrefillRef = useRef(false)
 
@@ -157,8 +158,16 @@ export default function LiveTranslationHome() {
     setMicConnectionState(next)
   }, [])
 
+  const updateTranscriptEntries = useCallback((
+    update: TranscriptEntry[] | ((entries: TranscriptEntry[]) => TranscriptEntry[])
+  ) => {
+    const next = typeof update === "function" ? update(transcriptEntriesRef.current) : update
+    transcriptEntriesRef.current = next
+    setTranscriptEntries(next)
+  }, [])
+
   const resetTranscript = useCallback(() => {
-    setTranscriptEntries([])
+    updateTranscriptEntries([])
     setPartialTranscript("")
     setRecordingError("")
     setSourceTitle("")
@@ -166,11 +175,7 @@ export default function LiveTranslationHome() {
     micLastTranscriptRef.current = ""
     micSessionStartedAtRef.current = null
     activeSessionStartedAtRef.current = null
-  }, [])
-
-  useEffect(() => {
-    transcriptEntriesRef.current = transcriptEntries
-  }, [transcriptEntries])
+  }, [updateTranscriptEntries])
 
   useEffect(() => {
     hostSessionEventsRef.current?.close()
@@ -263,7 +268,7 @@ export default function LiveTranslationHome() {
       }
       const timestampMs = now - micSessionStartedAtRef.current
 
-      setTranscriptEntries((prev) => {
+      updateTranscriptEntries((prev) => {
         const previousEntry = prev[prev.length - 1]
         const dedupedText = previousEntry
           ? dedupeBoundaryText(previousEntry.text, finalizedText)
@@ -285,7 +290,7 @@ export default function LiveTranslationHome() {
         )
       })
     },
-    [transcriptionMode]
+    [transcriptionMode, updateTranscriptEntries]
   )
 
   const onMicError = useCallback((error: Error | Event) => {
@@ -363,7 +368,7 @@ export default function LiveTranslationHome() {
         status: snapshot.status,
       })
       setSelectedSource(snapshot.sourceType)
-      setTranscriptEntries(snapshot.entries)
+      updateTranscriptEntries(snapshot.entries)
       setPartialTranscript("")
       setRecordingError("")
       setSourceTitle(snapshot.sourceTitle || "")
@@ -391,7 +396,7 @@ export default function LiveTranslationHome() {
                 status: nextSnapshot.status,
               }
         )
-        setTranscriptEntries(nextSnapshot.entries)
+        updateTranscriptEntries(nextSnapshot.entries)
         setSourceTitle(nextSnapshot.sourceTitle || "")
       })
 
@@ -399,7 +404,7 @@ export default function LiveTranslationHome() {
         const entry = JSON.parse(
           (event as MessageEvent<string>).data
         ) as TranscriptEntry
-        setTranscriptEntries((prev) => [...prev, entry])
+        updateTranscriptEntries((prev) => [...prev, entry])
       })
 
       eventSource.addEventListener("meta", (event) => {
@@ -428,7 +433,7 @@ export default function LiveTranslationHome() {
         toast.error("Live share connection was interrupted.")
       }
     },
-    [closeViewerStream]
+    [closeViewerStream, updateTranscriptEntries]
   )
 
   const handleJoinSharedSession = useCallback(async () => {
@@ -787,44 +792,52 @@ export default function LiveTranslationHome() {
       return
     }
 
+    if (stoppingRef.current) return
+    stoppingRef.current = true
     const currentSource = activeSourceRef.current
 
-    if (currentSource && transcriptEntriesRef.current.length > 0) {
-      try {
-        await persistTranscriptSession(currentSource)
-      } catch (error) {
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : "Unable to save the transcript session."
-        )
+    try {
+      if (currentSource === "microphone") {
+        const microphone = microphoneControllerRef.current
+        try {
+          await microphone?.disconnect()
+        } catch (error) {
+          onMicError(error instanceof Error ? error : new Error("Unable to finish microphone translation."))
+        }
+        updateMicConnectionState("idle")
+        setMicStatus("idle")
       }
-    }
 
-    if (currentSource === "microphone") {
-      try {
-        microphoneControllerRef.current?.disconnect()
-        microphoneControllerRef.current?.clearTranscripts()
-      } catch {
-        // noop
+      if (currentSource === "livestream") {
+        await livestreamControllerRef.current?.disconnect()
+        setLivestreamStatus("idle")
       }
-      updateMicConnectionState("idle")
-      setMicStatus("idle")
-    }
 
-    if (currentSource === "livestream") {
-      await livestreamControllerRef.current?.disconnect()
-      setLivestreamStatus("idle")
-    }
+      if (currentSource && transcriptEntriesRef.current.length > 0) {
+        try {
+          await persistTranscriptSession(currentSource)
+        } catch (error) {
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : "Unable to save the transcript session."
+          )
+        }
+      }
 
-    activeSourceRef.current = null
-    setActiveSource(null)
-    await endHostSharedSession()
-    resetTranscript()
-    playEnd()
+      activeSourceRef.current = null
+      setActiveSource(null)
+      await endHostSharedSession()
+      resetTranscript()
+      playEnd()
+    } finally {
+      stoppingRef.current = false
+    }
   }, [
     clearViewerSession,
     endHostSharedSession,
+    onMicError,
+    persistTranscriptSession,
     playEnd,
     resetTranscript,
     updateMicConnectionState,
@@ -832,6 +845,7 @@ export default function LiveTranslationHome() {
   ])
 
   const handlePrimaryAction = useCallback(async () => {
+    if (stoppingRef.current) return
     if (isSessionActive) {
       await stopCurrentSession()
       return
@@ -849,26 +863,11 @@ export default function LiveTranslationHome() {
       updateMicConnectionState("connecting")
 
       try {
-        await microphoneControllerRef.current?.connect({
-          languageCode: "es",
-          microphone: {
-            echoCancellation: false,
-            noiseSuppression: true,
-            autoGainControl: true,
-          },
-        })
-
-        if (activeSourceRef.current !== "microphone") {
-          try {
-            microphoneControllerRef.current?.disconnect()
-          } catch {
-            // noop
-          }
-          return
-        }
-
         micSessionStartedAtRef.current = Date.now()
-        activeSessionStartedAtRef.current = Date.now()
+        activeSessionStartedAtRef.current = micSessionStartedAtRef.current
+        await microphoneControllerRef.current?.connect()
+
+        if (activeSourceRef.current !== "microphone" || stoppingRef.current) return
         updateMicConnectionState("connected")
         playStart()
       } catch {
@@ -890,10 +889,8 @@ export default function LiveTranslationHome() {
     setActiveSource("livestream")
 
     try {
-      await livestreamControllerRef.current?.connect({
-        streamUrl: trimmedUrl,
-        transcriptionMode,
-      })
+      await livestreamControllerRef.current?.connect(trimmedUrl)
+      if (activeSourceRef.current !== "livestream" || stoppingRef.current) return
       activeSessionStartedAtRef.current = Date.now()
       playStart()
     } catch {
@@ -907,17 +904,17 @@ export default function LiveTranslationHome() {
     selectedSource,
     sourceUrl,
     stopCurrentSession,
-    transcriptionMode,
     updateMicConnectionState,
     closeViewerStream,
   ])
 
   const handlePauseToggle = useCallback(async () => {
+    if (stoppingRef.current) return
     if (activeSourceRef.current === "microphone") {
       if (micStatus === "paused") {
-        await microphoneControllerRef.current?.resume()
+        microphoneControllerRef.current?.resume()
       } else {
-        await microphoneControllerRef.current?.pause()
+        microphoneControllerRef.current?.pause()
       }
       return
     }
@@ -1101,7 +1098,7 @@ export default function LiveTranslationHome() {
             }
 
             setPartialTranscript("")
-            setTranscriptEntries((prev) => {
+            updateTranscriptEntries((prev) => {
               return appendMergedTranscriptEntry(prev, entry, transcriptionMode)
             })
           }}
@@ -1117,7 +1114,7 @@ export default function LiveTranslationHome() {
               return
             }
 
-            setTranscriptEntries(snapshot.segments)
+            updateTranscriptEntries(snapshot.segments)
             setPartialTranscript("")
             setSourceTitle(snapshot.sourceTitle || "")
             setRecordingError(snapshot.error || "")

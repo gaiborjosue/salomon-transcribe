@@ -2,6 +2,7 @@ import { revalidateTag } from "next/cache"
 import { NextResponse } from "next/server"
 
 import { getApiSession } from "@/lib/api-auth"
+import { parseTranscriptSpeakerId } from "@/lib/transcript-types"
 import {
   createTranscriptSession,
   getTranscriptSessionDetailTag,
@@ -37,6 +38,7 @@ export async function POST(request: Request) {
           entries?: Array<{
             id?: string
             lowConfidence?: boolean
+            speakerId?: unknown
             text?: string
             timestampMs?: number
           }>
@@ -55,6 +57,7 @@ export async function POST(request: Request) {
       payload?.entries?.map((entry, index) => ({
         id: entry.id || `${Date.now()}-${index}`,
         lowConfidence: Boolean(entry.lowConfidence),
+        speakerId: parseTranscriptSpeakerId(entry.speakerId),
         text: typeof entry.text === "string" ? entry.text : "",
         timestampMs: typeof entry.timestampMs === "number" ? entry.timestampMs : 0,
       })) ?? []

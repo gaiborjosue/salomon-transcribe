@@ -171,6 +171,7 @@ export const MuxTranscriptEntryScalarFieldEnum = {
   sessionId: 'sessionId',
   text: 'text',
   lowConfidence: 'lowConfidence',
+  speakerId: 'speakerId',
   timestampMs: 'timestampMs',
   createdAt: 'createdAt'
 } as const
@@ -201,6 +202,7 @@ export const RtmpTranscriptEntryScalarFieldEnum = {
   sessionId: 'sessionId',
   text: 'text',
   lowConfidence: 'lowConfidence',
+  speakerId: 'speakerId',
   timestampMs: 'timestampMs',
   createdAt: 'createdAt'
 } as const
@@ -228,6 +230,7 @@ export const SharedSessionEntryScalarFieldEnum = {
   sessionId: 'sessionId',
   text: 'text',
   lowConfidence: 'lowConfidence',
+  speakerId: 'speakerId',
   timestampMs: 'timestampMs',
   createdAt: 'createdAt'
 } as const
@@ -258,6 +261,7 @@ export const TranscriptSessionEntryScalarFieldEnum = {
   sessionId: 'sessionId',
   text: 'text',
   lowConfidence: 'lowConfidence',
+  speakerId: 'speakerId',
   timestampMs: 'timestampMs',
   createdAt: 'createdAt'
 } as const
