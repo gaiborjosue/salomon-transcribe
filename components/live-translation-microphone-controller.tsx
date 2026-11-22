@@ -13,6 +13,7 @@ import {
   SONIOX_TRANSLATION_CONFIG,
   SonioxTranslationBuffer,
 } from "@/lib/soniox-translation"
+import type { TranscriptCaption } from "@/lib/transcript-types"
 
 async function fetchSonioxConfig() {
   const response = await fetch("/api/soniox-token", { method: "POST" })
@@ -35,8 +36,8 @@ export function LiveTranslationMicrophoneController({
 }: {
   controllerRef: React.MutableRefObject<MicrophoneControllerHandle | null>
   onError: (error: Error | Event) => void
-  onFinalTranscript: (data: { lowConfidence?: boolean; text?: string }) => void
-  onPartialTranscript: (data: { text?: string }) => void
+  onFinalTranscript: (caption: TranscriptCaption) => void
+  onPartialTranscript: (captions: TranscriptCaption[]) => void
   onStatusChange: (status: MicControllerStatus) => void
 }) {
   const startup = useRef<{ resolve: () => void; reject: (error: Error) => void } | null>(null)
@@ -55,9 +56,8 @@ export function LiveTranslationMicrophoneController({
   }), [])
 
   function commitTranslation() {
-    const text = translation.takeFinal()
-    if (text) onFinalTranscript({ text })
-    onPartialTranscript({ text: "" })
+    for (const caption of translation.takeFinal()) onFinalTranscript(caption)
+    onPartialTranscript([])
   }
 
   const { cancel, pause, reconnect, resume, start, stop } = useRecording({
@@ -67,10 +67,10 @@ export function LiveTranslationMicrophoneController({
     auto_reconnect: true,
     reset_transcript_on_reconnect: true,
     onResult(result) {
-      const text = translation.update(result)
       if (result.tokens.length) {
-        onPartialTranscript({ text })
-        if (text && !paused.current && !stopping.current) onStatusChange("transcribing")
+        const captions = translation.update(result)
+        onPartialTranscript(captions)
+        if (captions.length && !paused.current && !stopping.current) onStatusChange("transcribing")
       }
     },
     onEndpoint() {
@@ -96,6 +96,7 @@ export function LiveTranslationMicrophoneController({
     },
     onReconnecting() {
       commitTranslation()
+      translation.resetSpeakers()
       onStatusChange("connecting")
     },
     onStateChange({ new_state }) {
@@ -119,6 +120,7 @@ export function LiveTranslationMicrophoneController({
         paused.current = false
         stopping.current = false
         translation.takeFinal()
+        translation.resetSpeakers()
         const pending = new Promise<void>((resolve, reject) => {
           startup.current = { resolve, reject }
         })

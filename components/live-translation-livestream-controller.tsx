@@ -7,10 +7,8 @@ import type {
   LivestreamControllerStatus,
 } from "@/components/live-translation-controller-types"
 import { useLivestreamTranslation } from "@/hooks/use-livestream-translation"
-import type {
-  LivestreamSessionSnapshot,
-  LivestreamTranscriptEntry,
-} from "@/lib/livestream-types"
+import type { LivestreamSessionSnapshot } from "@/lib/livestream-types"
+import type { TranscriptCaption, TranscriptEntry } from "@/lib/transcript-types"
 
 export function LiveTranslationLivestreamController({
   controllerRef,
@@ -22,8 +20,8 @@ export function LiveTranslationLivestreamController({
 }: {
   controllerRef: React.MutableRefObject<LivestreamControllerHandle | null>
   onError: (error: Error | Event) => void
-  onFinalTranscript: (entry: LivestreamTranscriptEntry) => void
-  onPartialTranscript: (data: { text?: string }) => void
+  onFinalTranscript: (entry: TranscriptEntry) => void
+  onPartialTranscript: (captions: TranscriptCaption[]) => void
   onSnapshot: (snapshot: LivestreamSessionSnapshot) => void
   onStatusChange: (payload: {
     error?: string

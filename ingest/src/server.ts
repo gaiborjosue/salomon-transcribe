@@ -167,7 +167,10 @@ async function handleRequest(incomingRequest: IncomingMessage, outgoingResponse:
       }
 
       if (event.type === "partial") {
-        send("partial", { captions: event.captions })
+        send("partial", {
+          captions: event.captions,
+          text: event.captions.map((caption) => caption.text).join(" "),
+        })
         return
       }
 

@@ -20,8 +20,8 @@ import { toast } from "sonner"
 import {
   BackgroundAura,
   TranscriberTranscript,
-  type TranscriptEntry,
 } from "@/components/transcriber-ui"
+import type { TranscriptEntry } from "@/lib/transcript-types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { TranscriptSessionSummary } from "@/lib/transcript-session-types"

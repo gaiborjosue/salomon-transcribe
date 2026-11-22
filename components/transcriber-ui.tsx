@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion"
 import { Copy } from "lucide-react"
 
 import { getBibleReferenceFragments } from "@/lib/bible-reference-highlighter"
+import type { TranscriptCaption, TranscriptEntry } from "@/lib/transcript-types"
 import { cn } from "@/lib/utils"
 import { useDebounce } from "@/hooks/use-debounce"
 import { usePrevious } from "@/hooks/use-previous"
@@ -12,13 +13,6 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Spinner } from "@/components/ui/spinner"
-
-export interface TranscriptEntry {
-  id: string
-  lowConfidence?: boolean
-  text: string
-  timestampMs: number
-}
 
 export type TranscriptTextAnimationMode = "normal" | "fast" | "none"
 
@@ -409,13 +403,50 @@ const AudioActivityIndicator = React.memo(
 )
 AudioActivityIndicator.displayName = "AudioActivityIndicator"
 
+const EMPTY_CAPTIONS: TranscriptCaption[] = []
+const SPEAKER_COLORS = [
+  ["#ccfcf0", "#72dec8", "#73a5e7"],
+  ["#fff1e5", "#ffa7c8", "#be9bee"],
+  ["#f3e9ff", "#beafff", "#8ea6ee"],
+  ["#fff3c9", "#ffc1a0", "#f59bb3"],
+  ["#def6ff", "#91d6ff", "#84b4ed"],
+  ["#f4ffd2", "#cce38a", "#7ed1b8"],
+  ["#ffe8f9", "#ef9eea", "#b5a0ff"],
+  ["#ffebdc", "#ffab97", "#e0a1c9"],
+  ["#daf1ff", "#9ab8ff", "#9e9add"],
+  ["#e5ffe5", "#a1edb1", "#84d3d7"],
+  ["#fff8db", "#f4d890", "#e8a6ac"],
+  ["#e8f2ff", "#a3cef2", "#bfa9f6"],
+  ["#ffe6eb", "#f7aeb3", "#d0a7e6"],
+  ["#dcfff7", "#9ce3de", "#8ab8ed"],
+  ["#fbf0ff", "#e7b2ff", "#9faaf6"],
+]
+
+function SpeakerOrb({ number }: { number: number }) {
+  const [light, middle, edge] = SPEAKER_COLORS[(number - 1) % SPEAKER_COLORS.length]
+  return (
+    <span
+      role="img"
+      aria-label={`Speaker ${number}`}
+      title={`Speaker ${number}`}
+      className="inline-flex size-5 shrink-0 items-center justify-center rounded-full border border-white/35 text-[10px] leading-none font-semibold tabular-nums text-slate-950"
+      style={{
+        backgroundImage: `radial-gradient(ellipse at 24% 19%, ${light}, transparent 65%), radial-gradient(ellipse at 77% 34%, ${middle}, transparent 75%), linear-gradient(142deg, ${middle}, ${edge})`,
+        boxShadow: `0 0 7px ${middle}45`,
+      }}
+    >
+      {number}
+    </span>
+  )
+}
+
 export const TranscriberTranscript = React.memo(
   ({
     activityState,
     entries,
     error,
     isConnected,
-    partialTranscript,
+    partialCaptions = EMPTY_CAPTIONS,
     previewOnly,
     textAnimation = "normal",
   }: {
@@ -423,7 +454,7 @@ export const TranscriberTranscript = React.memo(
     entries: TranscriptEntry[]
     error: string
     isConnected: boolean
-    partialTranscript?: string
+    partialCaptions?: TranscriptCaption[]
     previewOnly?: boolean
     textAnimation?: TranscriptTextAnimationMode
   }) => {
@@ -440,9 +471,30 @@ export const TranscriberTranscript = React.memo(
       [entries]
     )
     const partialFragments = useMemo(
-      () => getBibleReferenceFragments(partialTranscript || ""),
-      [partialTranscript]
+      () => partialCaptions.map((caption) => ({
+        caption,
+        fragments: getBibleReferenceFragments(caption.text),
+      })),
+      [partialCaptions]
     )
+    const speakerNumbers = useMemo(() => {
+      const numbers = new Map<string, number>()
+      for (const { speakerId } of entries) {
+        if (speakerId && !numbers.has(speakerId)) {
+          numbers.set(speakerId, numbers.size + 1)
+        }
+      }
+      return numbers
+    }, [entries])
+    const draftSpeakerNumbers = useMemo(() => {
+      const numbers = new Map(speakerNumbers)
+      for (const { speakerId } of partialCaptions) {
+        if (speakerId && !numbers.has(speakerId)) {
+          numbers.set(speakerId, numbers.size + 1)
+        }
+      }
+      return numbers
+    }, [partialCaptions, speakerNumbers])
     const totalCharacters = useMemo(
       () =>
         entryFragments.reduce(
@@ -454,7 +506,13 @@ export const TranscriberTranscript = React.memo(
             ),
           0
         ) +
-        partialFragments.reduce((sum, fragment) => sum + fragment.text.length, 0),
+        partialFragments.reduce(
+          (sum, item) => sum + item.fragments.reduce(
+            (fragmentSum, fragment) => fragmentSum + fragment.text.length,
+            0
+          ),
+          0
+        ),
       [entryFragments, partialFragments]
     )
     const previousNumChars = useDebounce(usePrevious(totalCharacters) || 0, 100)
@@ -526,7 +584,7 @@ export const TranscriberTranscript = React.memo(
           clearTimeout(scrollTimeoutRef.current)
         }
       }
-    }, [entries, isConnected, partialTranscript])
+    }, [entries, isConnected, partialCaptions])
 
     return (
       <div className="absolute inset-0 flex flex-col">
@@ -553,141 +611,115 @@ export const TranscriberTranscript = React.memo(
                     {(() => {
                       let charOffset = 0
 
+                      function renderFragments(
+                        fragments: ReturnType<typeof getBibleReferenceFragments>,
+                        rowKey: string,
+                        fragmentOffset: number
+                      ) {
+                        return fragments.map((fragment, fragmentIndex) => {
+                          const fragmentStart = charOffset
+                          charOffset += fragment.text.length
+                          const key = `${rowKey}-${fragment.osis || "text"}-${fragmentIndex}-${fragmentStart}`
+
+                          if (fragment.highlighted && fragment.query) {
+                            return (
+                              <BibleReferencePopover
+                                key={key}
+                                fragment={fragment}
+                                fragmentIndex={fragmentOffset + fragmentIndex}
+                                fragmentStart={fragmentStart}
+                                previousNumChars={previousNumChars}
+                                lookupState={
+                                  chapterLookups[fragment.query.replace(/([:.]\d+(?:-\d+)?)$/u, "").trim()]
+                                }
+                                onOpen={() => void ensureVerseLookup(fragment.query)}
+                                textAnimation={textAnimation}
+                              />
+                            )
+                          }
+
+                          return (
+                            <span key={key}>
+                              {fragment.text.split("").map((char, index) => {
+                                const globalIndex = fragmentStart + index
+                                const motion = getTranscriptCharacterMotion(
+                                  globalIndex,
+                                  previousNumChars,
+                                  textAnimation
+                                )
+
+                                return (
+                                  <TranscriptCharacter
+                                    key={`${rowKey}-${fragmentIndex}-${globalIndex}`}
+                                    char={char}
+                                    delay={motion.delay}
+                                    duration={motion.duration}
+                                  />
+                                )
+                              })}
+                            </span>
+                          )
+                        })
+                      }
+
                       return (
                         <>
-                          {entryFragments.map(({ entry, fragments }, entryIndex) => (
-                            <div
-                              key={entry.id}
-                              className="grid grid-cols-[3.5rem_1fr] items-start gap-3 sm:grid-cols-[4.5rem_1fr] sm:gap-4"
-                            >
-                              <div className="pt-1">
-                                <div className="text-muted-foreground/70 text-[11px] font-medium tracking-[0.16em] uppercase">
-                                  {formatElapsedTime(entry.timestampMs)}
-                                </div>
-                                {entry.lowConfidence ? (
-                                  <div className="mt-1 flex items-center gap-1 text-[10px] text-amber-200/55">
-                                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-200/65" />
-                                    <span className="tracking-[0.14em] uppercase">
-                                      soft
-                                    </span>
-                                  </div>
-                                ) : null}
-                              </div>
+                          {entryFragments.map(({ entry, fragments }, entryIndex) => {
+                            const speaker = entry.speakerId ? speakerNumbers.get(entry.speakerId) : undefined
+                            return (
                               <div
-                                className={cn(
-                                  "text-xl leading-relaxed font-light",
-                                  entry.lowConfidence
-                                    ? "text-foreground/78"
-                                    : "text-foreground/90",
-                                  error && "text-red-500"
-                                )}
+                                key={entry.id}
+                                className="grid grid-cols-[3.5rem_1fr] items-start gap-3 sm:grid-cols-[4.5rem_1fr] sm:gap-4"
                               >
-                                {fragments.map((fragment, fragmentIndex) => {
-                                  const fragmentStart = charOffset
-                                  charOffset += fragment.text.length
-
-                                  return fragment.highlighted && fragment.query ? (
-                                    <BibleReferencePopover
-                                      key={`${entry.id}-${fragment.osis || "text"}-${fragmentIndex}-${fragmentStart}`}
-                                      fragment={fragment}
-                                      fragmentIndex={entryIndex * 1000 + fragmentIndex}
-                                      fragmentStart={fragmentStart}
-                                      previousNumChars={previousNumChars}
-                                      lookupState={
-                                        fragment.query
-                                          ? chapterLookups[
-                                              fragment.query
-                                                .replace(/([:.]\d+(?:-\d+)?)$/u, "")
-                                                .trim()
-                                            ]
-                                          : undefined
-                                      }
-                                      onOpen={() => void ensureVerseLookup(fragment.query)}
-                                      textAnimation={textAnimation}
-                                    />
-                                  ) : (
-                                    <span
-                                      key={`${entry.id}-${fragment.osis || "text"}-${fragmentIndex}-${fragmentStart}`}
-                                    >
-                                      {fragment.text.split("").map((char, index) => {
-                                        const globalIndex = fragmentStart + index
-                                        const motion = getTranscriptCharacterMotion(
-                                          globalIndex,
-                                          previousNumChars,
-                                          textAnimation
-                                        )
-
-                                        return (
-                                          <TranscriptCharacter
-                                            key={`${entry.id}-${fragmentIndex}-${globalIndex}`}
-                                            char={char}
-                                            delay={motion.delay}
-                                            duration={motion.duration}
-                                          />
-                                        )
-                                      })}
-                                    </span>
-                                  )
-                                })}
+                                <div className="pt-1">
+                                  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                                    {speaker && <SpeakerOrb number={speaker} />}
+                                    <div className="text-muted-foreground/70 text-[11px] font-medium tracking-[0.12em] uppercase">
+                                      {formatElapsedTime(entry.timestampMs)}
+                                    </div>
+                                  </div>
+                                  {entry.lowConfidence ? (
+                                    <div className="mt-1 flex items-center gap-1 text-[10px] text-amber-200/55">
+                                      <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-200/65" />
+                                      <span className="tracking-[0.14em] uppercase">
+                                        soft
+                                      </span>
+                                    </div>
+                                  ) : null}
+                                </div>
+                                <div
+                                  className={cn(
+                                    "text-xl leading-relaxed font-light",
+                                    entry.lowConfidence
+                                      ? "text-foreground/78"
+                                      : "text-foreground/90",
+                                    error && "text-red-500"
+                                  )}
+                                >
+                                  {renderFragments(fragments, entry.id, entryIndex * 1000)}
+                                </div>
                               </div>
-                            </div>
-                          ))}
-                          {!error && partialFragments.length > 0 && (
-                            <div className="grid grid-cols-[3.5rem_1fr] items-start gap-3 sm:grid-cols-[4.5rem_1fr] sm:gap-4">
-                              <div className="text-muted-foreground/45 pt-1 text-[11px] font-medium tracking-[0.16em] uppercase">
-                                Live
+                            )
+                          })}
+                          {!error && partialFragments.map(({ caption, fragments }, draftIndex) => {
+                            const speaker = caption.speakerId
+                              ? draftSpeakerNumbers.get(caption.speakerId)
+                              : undefined
+                            return (
+                              <div
+                                key={`partial-${draftIndex}-${caption.speakerId ?? "unknown"}`}
+                                className="grid grid-cols-[3.5rem_1fr] items-start gap-3 sm:grid-cols-[4.5rem_1fr] sm:gap-4"
+                              >
+                                <div className="text-muted-foreground/45 flex flex-wrap items-center gap-x-1.5 gap-y-1 pt-1 text-[11px] font-medium tracking-[0.12em] uppercase">
+                                  {speaker && <SpeakerOrb number={speaker} />}
+                                  Live
+                                </div>
+                                <div className="text-foreground/60 text-xl leading-relaxed font-light">
+                                  {renderFragments(fragments, `partial-${draftIndex}`, 90000 + draftIndex * 1000)}
+                                </div>
                               </div>
-                              <div className="text-foreground/60 text-xl leading-relaxed font-light">
-                                {partialFragments.map((fragment, fragmentIndex) => {
-                                  const fragmentStart = charOffset
-                                  charOffset += fragment.text.length
-
-                                  return fragment.highlighted && fragment.query ? (
-                                    <BibleReferencePopover
-                                      key={`partial-${fragment.osis || "text"}-${fragmentIndex}-${fragmentStart}`}
-                                      fragment={fragment}
-                                      fragmentIndex={90000 + fragmentIndex}
-                                      fragmentStart={fragmentStart}
-                                      previousNumChars={previousNumChars}
-                                      lookupState={
-                                        fragment.query
-                                          ? chapterLookups[
-                                              fragment.query
-                                                .replace(/([:.]\d+(?:-\d+)?)$/u, "")
-                                                .trim()
-                                            ]
-                                          : undefined
-                                      }
-                                      onOpen={() => void ensureVerseLookup(fragment.query)}
-                                      textAnimation={textAnimation}
-                                    />
-                                  ) : (
-                                    <span
-                                      key={`partial-${fragment.osis || "text"}-${fragmentIndex}-${fragmentStart}`}
-                                    >
-                                      {fragment.text.split("").map((char, index) => {
-                                        const globalIndex = fragmentStart + index
-                                        const motion = getTranscriptCharacterMotion(
-                                          globalIndex,
-                                          previousNumChars,
-                                          textAnimation
-                                        )
-
-                                        return (
-                                          <TranscriptCharacter
-                                            key={`partial-${fragmentIndex}-${globalIndex}`}
-                                            char={char}
-                                            delay={motion.delay}
-                                            duration={motion.duration}
-                                          />
-                                        )
-                                      })}
-                                    </span>
-                                  )
-                                })}
-                              </div>
-                            </div>
-                          )}
+                            )
+                          })}
                         </>
                       )
                     })()}
@@ -722,7 +754,7 @@ export const TranscriberTranscript = React.memo(
             background: rgba(255, 255, 255, 0.28);
           }
         `}</style>
-        {(entries.length > 0 || partialTranscript) && !error && !partialTranscript && (
+        {entries.length > 0 && !error && partialCaptions.length === 0 && (
           <Button
             variant="ghost"
             size="icon"

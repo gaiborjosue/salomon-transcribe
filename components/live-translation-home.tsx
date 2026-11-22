@@ -17,7 +17,6 @@ import {
   BackgroundAura,
   BottomControls,
   TranscriberTranscript,
-  type TranscriptEntry,
 } from "@/components/transcriber-ui"
 import { Button } from "@/components/ui/button"
 import {
@@ -45,7 +44,8 @@ import type {
   MicrophoneControllerHandle,
   MicControllerStatus,
 } from "@/components/live-translation-controller-types"
-import type { LivestreamSessionSnapshot, LivestreamTranscriptEntry } from "@/lib/livestream-types"
+import type { LivestreamSessionSnapshot } from "@/lib/livestream-types"
+import type { TranscriptCaption, TranscriptEntry } from "@/lib/transcript-types"
 import type { TranscriptSessionSummary } from "@/lib/transcript-session-types"
 import { appendMergedTranscriptEntry } from "@/lib/transcript-entry-merge"
 import {
@@ -117,7 +117,7 @@ export default function LiveTranslationHome() {
   })
   const [recordingError, setRecordingError] = useState("")
   const [transcriptEntries, setTranscriptEntries] = useState<TranscriptEntry[]>([])
-  const [partialTranscript, setPartialTranscript] = useState("")
+  const [partialCaptions, setPartialCaptions] = useState<TranscriptCaption[]>([])
   const [sourceTitle, setSourceTitle] = useState("")
   const [isPaused, setIsPaused] = useState(false)
   const [isMac, setIsMac] = useState(true)
@@ -141,7 +141,6 @@ export default function LiveTranslationHome() {
   const livestreamControllerRef = useRef<LivestreamControllerHandle | null>(null)
   const micSessionStartedAtRef = useRef<number | null>(null)
   const activeSessionStartedAtRef = useRef<number | null>(null)
-  const micLastTranscriptRef = useRef("")
   const viewerEventSourceRef = useRef<EventSource | null>(null)
   const hostSessionEventsRef = useRef<EventSource | null>(null)
   const transcriptEntriesRef = useRef<TranscriptEntry[]>([])
@@ -168,11 +167,10 @@ export default function LiveTranslationHome() {
 
   const resetTranscript = useCallback(() => {
     updateTranscriptEntries([])
-    setPartialTranscript("")
+    setPartialCaptions([])
     setRecordingError("")
     setSourceTitle("")
     setIsPaused(false)
-    micLastTranscriptRef.current = ""
     micSessionStartedAtRef.current = null
     activeSessionStartedAtRef.current = null
   }, [updateTranscriptEntries])
@@ -224,25 +222,28 @@ export default function LiveTranslationHome() {
     resetTranscript()
   }, [closeViewerStream, resetTranscript])
 
-  const onMicPartialTranscript = useCallback((data: { text?: string }) => {
-    if (
-      activeSourceRef.current !== "microphone" ||
-      micConnectionStateRef.current !== "connected"
-    ) {
-      return
-    }
-
-    const nextText = data.text || ""
-    if (nextText === micLastTranscriptRef.current) {
-      return
-    }
-
-    micLastTranscriptRef.current = nextText
-    setPartialTranscript(nextText)
+  const updatePartialCaptions = useCallback((captions: TranscriptCaption[]) => {
+    setPartialCaptions((previous) => (
+      previous.length === captions.length &&
+      previous.every((caption, index) => (
+        caption.text === captions[index].text && caption.speakerId === captions[index].speakerId
+      ))
+        ? previous
+        : captions
+    ))
   }, [])
 
+  const onMicPartialTranscript = useCallback((captions: TranscriptCaption[]) => {
+    if (
+      activeSourceRef.current === "microphone" &&
+      micConnectionStateRef.current === "connected"
+    ) {
+      updatePartialCaptions(captions)
+    }
+  }, [updatePartialCaptions])
+
   const onMicFinalTranscript = useCallback(
-    (data: { lowConfidence?: boolean; text?: string }) => {
+    ({ speakerId, text }: TranscriptCaption) => {
       if (
         activeSourceRef.current !== "microphone" ||
         micConnectionStateRef.current !== "connected"
@@ -250,14 +251,7 @@ export default function LiveTranslationHome() {
         return
       }
 
-      micLastTranscriptRef.current = ""
-      setPartialTranscript("")
-
-      if (!data.text) {
-        return
-      }
-
-      const finalizedText = data.text.trim()
+      const finalizedText = text.trim()
       if (!finalizedText) {
         return
       }
@@ -270,9 +264,10 @@ export default function LiveTranslationHome() {
 
       updateTranscriptEntries((prev) => {
         const previousEntry = prev[prev.length - 1]
-        const dedupedText = previousEntry
-          ? dedupeBoundaryText(previousEntry.text, finalizedText)
-          : finalizedText
+        const dedupedText = dedupeBoundaryText(
+          previousEntry?.speakerId === speakerId ? previousEntry?.text ?? "" : "",
+          finalizedText
+        )
 
         if (!dedupedText) {
           return prev
@@ -282,7 +277,7 @@ export default function LiveTranslationHome() {
           prev,
           {
             id: `${now}-${prev.length}`,
-            lowConfidence: Boolean(data.lowConfidence),
+            speakerId,
             text: dedupedText,
             timestampMs,
           },
@@ -369,7 +364,7 @@ export default function LiveTranslationHome() {
       })
       setSelectedSource(snapshot.sourceType)
       updateTranscriptEntries(snapshot.entries)
-      setPartialTranscript("")
+      setPartialCaptions([])
       setRecordingError("")
       setSourceTitle(snapshot.sourceTitle || "")
       setIsPaused(false)
@@ -783,7 +778,7 @@ export default function LiveTranslationHome() {
   )
 
   const hasContent = Boolean(
-    recordingError || transcriptEntries.length || partialTranscript
+    recordingError || transcriptEntries.length || partialCaptions.length
   )
 
   const stopCurrentSession = useCallback(async () => {
@@ -1088,26 +1083,25 @@ export default function LiveTranslationHome() {
 
             const message =
               error instanceof Error ? error.message : "Livestream translation failed."
-            setPartialTranscript("")
+            setPartialCaptions([])
             setRecordingError(message)
             playError()
           }}
-          onFinalTranscript={(entry: LivestreamTranscriptEntry) => {
+          onFinalTranscript={(entry: TranscriptEntry) => {
             if (activeSourceRef.current !== "livestream") {
               return
             }
 
-            setPartialTranscript("")
             updateTranscriptEntries((prev) => {
               return appendMergedTranscriptEntry(prev, entry, transcriptionMode)
             })
           }}
-          onPartialTranscript={({ text }) => {
+          onPartialTranscript={(captions) => {
             if (activeSourceRef.current !== "livestream") {
               return
             }
 
-            setPartialTranscript(text?.trim() || "")
+            updatePartialCaptions(captions)
           }}
           onSnapshot={(snapshot: LivestreamSessionSnapshot) => {
             if (activeSourceRef.current !== "livestream") {
@@ -1115,7 +1109,7 @@ export default function LiveTranslationHome() {
             }
 
             updateTranscriptEntries(snapshot.segments)
-            setPartialTranscript("")
+            setPartialCaptions([])
             setSourceTitle(snapshot.sourceTitle || "")
             setRecordingError(snapshot.error || "")
             setIsPaused(snapshot.status === "paused")
@@ -1132,7 +1126,7 @@ export default function LiveTranslationHome() {
             }
             setIsPaused(status === "paused")
             if (status === "paused" || status === "disconnected" || status === "error") {
-              setPartialTranscript("")
+              setPartialCaptions([])
             }
             if (error) {
               setRecordingError(error)
@@ -1195,11 +1189,7 @@ export default function LiveTranslationHome() {
                     entries={transcriptEntries}
                     error={recordingError}
                     isConnected={isSessionActive}
-                    partialTranscript={
-                      activeSource === "microphone" && !viewerSession
-                        ? partialTranscript
-                        : ""
-                    }
+                    partialCaptions={viewerSession ? undefined : partialCaptions}
                   />
                 </>
               )}
@@ -1248,7 +1238,7 @@ export default function LiveTranslationHome() {
               activityState={
                 transcriptEntries.length > 0 &&
                 !recordingError &&
-                !partialTranscript &&
+                !partialCaptions.length &&
                 (currentStatus === "transcribing" || currentStatus === "connected")
                   ? currentStatus === "transcribing"
                     ? "processing"

@@ -5,8 +5,8 @@ import { useCallback, useEffect, useRef } from "react"
 import type {
   LivestreamSessionSnapshot,
   LivestreamSessionStatus,
-  LivestreamTranscriptEntry,
 } from "@/lib/livestream-types"
+import type { TranscriptCaption, TranscriptEntry } from "@/lib/transcript-types"
 
 type LivestreamStatusUpdate = {
   error?: string
@@ -16,8 +16,8 @@ type LivestreamStatusUpdate = {
 
 interface LivestreamConfig {
   onError?: (error: Error | Event) => void
-  onFinalTranscript?: (entry: LivestreamTranscriptEntry) => void
-  onPartialTranscript?: (data: { text?: string }) => void
+  onFinalTranscript?: (entry: TranscriptEntry) => void
+  onPartialTranscript?: (captions: TranscriptCaption[]) => void
   onSnapshot?: (snapshot: LivestreamSessionSnapshot) => void
   onStatusChange?: (payload: LivestreamStatusUpdate) => void
 }
@@ -167,7 +167,7 @@ export function useLivestreamTranslation(config: LivestreamConfig) {
         eventSource.addEventListener("segment", (event) => {
           const entry = JSON.parse(
             (event as MessageEvent<string>).data
-          ) as LivestreamTranscriptEntry
+          ) as TranscriptEntry
           if (!receivedEntries.current.has(entry.id)) {
             receivedEntries.current.add(entry.id)
             callbacks.current.onFinalTranscript?.(entry)
@@ -177,8 +177,10 @@ export function useLivestreamTranslation(config: LivestreamConfig) {
         eventSource.addEventListener("partial", (event) => {
           const payload = JSON.parse(
             (event as MessageEvent<string>).data
-          ) as { text?: string }
-          callbacks.current.onPartialTranscript?.(payload)
+          ) as { captions?: TranscriptCaption[]; text?: string }
+          callbacks.current.onPartialTranscript?.(
+            payload.captions ?? (payload.text ? [{ text: payload.text }] : [])
+          )
         })
 
         eventSource.addEventListener("status", (event) => {

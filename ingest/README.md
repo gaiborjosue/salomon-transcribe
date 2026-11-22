@@ -63,7 +63,8 @@ The main app can optionally set:
 
 Vercel does not run the long-lived `yt-dlp`, `ffmpeg`, and WebSocket process. Deploy
 `Dockerfile.ingest` on a persistent container host, configure the variables above,
-and point the Vercel app at that service. End active sessions before deploying
-the app and ingest service together.
+and point the Vercel app at that service. Apply the Prisma migrations before
+deploying the app so transcript entries can store speaker labels. End active
+sessions before deploying the app and ingest service together.
 YouTube event streams connect directly to the ingest service after the app creates
 the session. Mux and RTMP write finalized captions through their app session APIs.
