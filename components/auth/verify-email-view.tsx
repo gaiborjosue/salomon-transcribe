@@ -130,7 +130,7 @@ export function VerifyEmailView() {
 
         <Button
           asChild
-          className="h-11 w-full rounded-full bg-white text-black hover:bg-white/90"
+          className="h-11 w-full rounded-full bg-white/86 text-black hover:bg-white/90"
         >
           <Link
             href={`/sign-in?verified=1${
@@ -182,7 +182,7 @@ export function VerifyEmailView() {
         <Button
           type="submit"
           disabled={isResending || !email}
-          className="h-11 w-full rounded-full bg-white text-black hover:bg-white/90"
+          className="h-11 w-full rounded-full bg-white/86 text-black hover:bg-white/90"
         >
           {isResending ? "Sending link..." : "Send verification email"}
         </Button>

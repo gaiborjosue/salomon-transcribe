@@ -8,6 +8,7 @@ import { PanelLeftIcon } from 'lucide-react'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { GlassSurfaceFilter } from '@/components/ui/glass-surface'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import {
@@ -155,6 +156,7 @@ function Sidebar({
   side = 'left',
   variant = 'sidebar',
   collapsible = 'offcanvas',
+  onEscapeKeyDown,
   className,
   children,
   ...props
@@ -162,6 +164,7 @@ function Sidebar({
   side?: 'left' | 'right'
   variant?: 'sidebar' | 'floating' | 'inset'
   collapsible?: 'offcanvas' | 'icon' | 'none'
+  onEscapeKeyDown?: React.ComponentProps<typeof SheetContent>['onEscapeKeyDown']
 }) {
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
 
@@ -170,11 +173,12 @@ function Sidebar({
       <div
         data-slot="sidebar"
         className={cn(
-          'bg-sidebar text-sidebar-foreground flex h-full w-(--sidebar-width) flex-col',
+          'glass-surface glass-surface-sidebar bg-sidebar/82 text-sidebar-foreground flex h-full w-(--sidebar-width) flex-col',
           className,
         )}
         {...props}
       >
+        <GlassSurfaceFilter />
         {children}
       </div>
     )
@@ -187,14 +191,16 @@ function Sidebar({
           data-sidebar="sidebar"
           data-slot="sidebar"
           data-mobile="true"
-          className="bg-sidebar text-sidebar-foreground w-(--sidebar-width) p-0 [&>button]:hidden"
+          className="glass-surface glass-surface-sidebar bg-sidebar/82 text-sidebar-foreground w-(--sidebar-width) p-0 [&>button]:hidden"
           style={
             {
               '--sidebar-width': SIDEBAR_WIDTH_MOBILE,
             } as React.CSSProperties
           }
           side={side}
+          onEscapeKeyDown={onEscapeKeyDown}
         >
+          <GlassSurfaceFilter />
           <SheetHeader className="sr-only">
             <SheetTitle>Sidebar</SheetTitle>
             <SheetDescription>Displays the mobile sidebar.</SheetDescription>
@@ -244,8 +250,9 @@ function Sidebar({
         <div
           data-sidebar="sidebar"
           data-slot="sidebar-inner"
-          className="bg-sidebar group-data-[variant=floating]:border-sidebar-border flex h-full w-full flex-col group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:shadow-sm"
+          className="glass-surface glass-surface-sidebar bg-sidebar/82 group-data-[variant=floating]:border-sidebar-border flex h-full w-full flex-col group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:shadow-sm"
         >
+          <GlassSurfaceFilter />
           {children}
         </div>
       </div>
@@ -326,7 +333,10 @@ function SidebarInput({
     <Input
       data-slot="sidebar-input"
       data-sidebar="input"
-      className={cn('bg-background h-8 w-full shadow-none', className)}
+      className={cn(
+        'border-sidebar-border bg-sidebar-accent text-sidebar-foreground placeholder:text-sidebar-foreground/60 focus-visible:border-sidebar-ring focus-visible:ring-sidebar-ring/50 h-8 w-full shadow-none',
+        className,
+      )}
       {...props}
     />
   )

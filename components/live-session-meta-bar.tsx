@@ -58,6 +58,7 @@ export function LiveSessionMetaBar({
       </div>
       {canShare ? (
         <Button
+          glass
           type="button"
           variant="ghost"
           onClick={onShare}

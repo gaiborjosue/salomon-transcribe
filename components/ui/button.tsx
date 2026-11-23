@@ -1,7 +1,8 @@
 import * as React from 'react'
-import { Slot } from '@radix-ui/react-slot'
+import { Slot, Slottable } from '@radix-ui/react-slot'
 import { cva, type VariantProps } from 'class-variance-authority'
 
+import { GlassSurfaceFilter } from '@/components/ui/glass-surface'
 import { cn } from '@/lib/utils'
 
 const buttonVariants = cva(
@@ -36,24 +37,49 @@ const buttonVariants = cva(
   },
 )
 
+const glassTints = {
+  default: 'bg-primary/86',
+  destructive: 'bg-destructive/86',
+  outline: 'bg-background/80 hover:bg-accent/86',
+  secondary: 'bg-secondary/86',
+  ghost: '',
+  link: '',
+}
+
 function Button({
+  children,
   className,
   variant,
   size,
+  glass = variant !== null && variant !== 'ghost' && variant !== 'link',
   asChild = false,
   ...props
 }: React.ComponentProps<'button'> &
   VariantProps<typeof buttonVariants> & {
     asChild?: boolean
+    glass?: boolean
   }) {
   const Comp = asChild ? Slot : 'button'
 
   return (
     <Comp
       data-slot="button"
-      className={cn(buttonVariants({ variant, size, className }))}
+      className={cn(
+        buttonVariants({ variant, size }),
+        glass && ['glass-surface', glassTints[variant ?? 'default']],
+        className,
+      )}
       {...props}
-    />
+    >
+      {glass
+        ? [
+            asChild
+              ? <Slottable key="content">{children}</Slottable>
+              : <React.Fragment key="content">{children}</React.Fragment>,
+            <GlassSurfaceFilter key="glass" />,
+          ]
+        : children}
+    </Comp>
   )
 }
 

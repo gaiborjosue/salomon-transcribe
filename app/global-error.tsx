@@ -31,7 +31,7 @@ export default function GlobalError({
                 A root-level error interrupted the app shell.
               </p>
               <div className="mt-8">
-                <Button onClick={() => reset()} className="h-11 rounded-full bg-white text-black hover:bg-white/90">
+                <Button onClick={() => reset()} className="h-11 rounded-full bg-white/86 text-black hover:bg-white/90">
                   Reload app
                 </Button>
               </div>

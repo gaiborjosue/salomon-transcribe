@@ -7,36 +7,22 @@ if (!connectionString) {
   throw new Error("DATABASE_URL is not configured.")
 }
 
-const adapter = new PrismaPg({ connectionString })
-
 const globalForPrisma = globalThis as typeof globalThis & {
   prisma?: PrismaClient
-  prismaVersion?: number
+  prismaConnectionString?: string
 }
 
-const PRISMA_CLIENT_VERSION = 6
-
-const shouldCreatePrismaClient =
-  !globalForPrisma.prisma ||
-  globalForPrisma.prismaVersion !== PRISMA_CLIENT_VERSION ||
-  typeof globalForPrisma.prisma.muxLiveSession?.findMany !== "function" ||
-  typeof globalForPrisma.prisma.muxTranscriptEntry?.findMany !== "function" ||
-  typeof globalForPrisma.prisma.rtmpSession?.findMany !== "function" ||
-  typeof globalForPrisma.prisma.rtmpTranscriptEntry?.findMany !== "function" ||
-  typeof globalForPrisma.prisma.sharedSession?.findMany !== "function" ||
-  typeof globalForPrisma.prisma.sharedSessionEntry?.findMany !== "function" ||
-  typeof globalForPrisma.prisma.transcriptSession?.findMany !== "function" ||
-  typeof globalForPrisma.prisma.transcriptSessionEntry?.findMany !== "function"
-
-const prisma: PrismaClient = shouldCreatePrismaClient
-  ? new PrismaClient({
-      adapter,
-    })
-  : globalForPrisma.prisma!
+// Hot reload can preserve the old instance after the generated client changes.
+const prisma =
+  process.env.NODE_ENV !== "production" &&
+  globalForPrisma.prisma?.constructor === PrismaClient &&
+  globalForPrisma.prismaConnectionString === connectionString
+    ? globalForPrisma.prisma
+    : new PrismaClient({ adapter: new PrismaPg({ connectionString }) })
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma
-  globalForPrisma.prismaVersion = PRISMA_CLIENT_VERSION
+  globalForPrisma.prismaConnectionString = connectionString
 }
 
 export default prisma

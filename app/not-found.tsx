@@ -17,7 +17,7 @@ export default function NotFound() {
             The session or route you requested no longer exists, or the URL is invalid.
           </p>
           <div className="mt-8">
-            <Button asChild className="h-11 rounded-full bg-white text-black hover:bg-white/90">
+            <Button asChild className="h-11 rounded-full bg-white/86 text-black hover:bg-white/90">
               <Link href="/">Back to home</Link>
             </Button>
           </div>

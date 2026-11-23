@@ -29,7 +29,7 @@ export default function Error({
             Salomon hit an unexpected error while rendering this route.
           </p>
           <div className="mt-8">
-            <Button onClick={() => reset()} className="h-11 rounded-full bg-white text-black hover:bg-white/90">
+            <Button onClick={() => reset()} className="h-11 rounded-full bg-white/86 text-black hover:bg-white/90">
               Try again
             </Button>
           </div>

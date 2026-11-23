@@ -171,7 +171,7 @@ export function LiveSessionStartPanel({
                 <Button
                   onClick={onPrimaryAction}
                   size="lg"
-                  className="relative h-12 w-full rounded-[1.05rem] bg-white text-black shadow-[0_0_0_1px_rgba(255,255,255,0.08)] hover:bg-white/92"
+                  className="relative h-12 w-full rounded-[1.05rem] bg-white/86 text-black shadow-[0_0_0_1px_rgba(255,255,255,0.08)] hover:bg-white/92"
                 >
                   {selectedSource === "microphone" ? "Start microphone" : "Start livestream"}
                 </Button>

@@ -122,6 +122,7 @@ function InlineAdvancedField({
           {value}
         </div>
         <Button
+          glass
           variant="ghost"
           size="icon"
           className="h-8 w-8 shrink-0 rounded-full border border-white/10 bg-white/[0.03] text-white/60 hover:bg-white/10 hover:text-white"
@@ -567,6 +568,7 @@ export function RtmpIngestPage() {
       <div className="relative z-10 mx-auto flex min-h-[100dvh] w-full max-w-5xl flex-col px-5 py-6 sm:px-8">
         <div className="flex items-center justify-between gap-4">
           <Button
+            glass
             asChild
             variant="ghost"
             className="rounded-full border border-white/10 bg-black/20 px-4 text-white/70 hover:bg-white/8 hover:text-white"
@@ -618,7 +620,7 @@ export function RtmpIngestPage() {
                 <Button
                   onClick={handleStart}
                   disabled={isStarting}
-                  className="h-12 rounded-full bg-white text-black hover:bg-white/92"
+                  className="h-12 rounded-full bg-white/86 text-black hover:bg-white/92"
                 >
                   {isStarting ? "Creating RTMP session..." : "Create RTMP session"}
                 </Button>
@@ -636,6 +638,7 @@ export function RtmpIngestPage() {
                       </p>
                     </div>
                     <Button
+                      glass
                       onClick={() => void loadAvailableSessions()}
                       variant="ghost"
                       size="icon"
@@ -669,6 +672,7 @@ export function RtmpIngestPage() {
                           </div>
                         </div>
                         <Button
+                          glass
                           onClick={() => void handleResume(sessionItem)}
                           variant="ghost"
                           className="h-10 rounded-full border border-white/10 bg-black/20 px-4 text-white/72 hover:bg-white/8 hover:text-white"
@@ -720,6 +724,7 @@ export function RtmpIngestPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
+                    glass
                     onClick={handlePauseToggle}
                     variant="ghost"
                     className="rounded-full border border-white/10 bg-black/25 px-4 text-white/74 hover:bg-white/8 hover:text-white"
@@ -732,6 +737,7 @@ export function RtmpIngestPage() {
                     {status === "paused" ? "Resume session" : "Pause session"}
                   </Button>
                   <Button
+                    glass
                     onClick={handleStop}
                     variant="ghost"
                     className="rounded-full border border-white/10 bg-black/25 px-4 text-white/74 hover:bg-white/8 hover:text-white"
@@ -754,6 +760,7 @@ export function RtmpIngestPage() {
                       className="h-11 rounded-2xl border-white/10 bg-white/[0.03] text-white/88"
                     />
                     <Button
+                      glass
                       variant="ghost"
                       size="icon"
                       className="h-11 w-11 rounded-2xl border border-white/10 bg-white/[0.03] text-white/70 hover:bg-white/10 hover:text-white"
@@ -773,6 +780,7 @@ export function RtmpIngestPage() {
                   <div className="flex items-center gap-2">
                     <StreamKeyField value={hostSession?.snapshot.streamKey ?? ""} />
                     <Button
+                      glass
                       variant="ghost"
                       size="icon"
                       className="h-11 w-11 rounded-2xl border border-white/10 bg-white/[0.03] text-white/70 hover:bg-white/10 hover:text-white"
@@ -792,6 +800,7 @@ export function RtmpIngestPage() {
 
               <div className="flex flex-wrap items-start gap-3">
                 <Button
+                  glass
                   type="button"
                   variant="ghost"
                   className="rounded-full border border-white/10 bg-black/25 px-4 text-white/72 hover:bg-white/8 hover:text-white"

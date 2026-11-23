@@ -53,7 +53,7 @@ function HomeSidebarTrigger() {
             }
       }
     >
-      <SidebarTrigger className="pointer-events-auto size-10 rounded-full border border-white/10 bg-black/30 text-white/72 backdrop-blur-sm hover:bg-white/8 hover:text-white" />
+      <SidebarTrigger glass className="pointer-events-auto size-10 rounded-full border border-white/10 bg-black/30 text-white/72 hover:bg-white/8 hover:text-white" />
     </div>
   )
 }
@@ -214,7 +214,11 @@ export function AuthenticatedHomeShell({
 
   return (
     <authenticatedShellContext.Provider value={callbacks}>
-      <SidebarProvider open={isSidebarOpen} onOpenChange={setIsSidebarOpen}>
+      <SidebarProvider
+        className="bg-app-canvas"
+        open={isSidebarOpen}
+        onOpenChange={setIsSidebarOpen}
+      >
         <TranscriptHistorySidebar
           disableSelection={isLiveSessionActive}
           selectedSessionId={activeHistorySessionId ?? null}
@@ -227,7 +231,7 @@ export function AuthenticatedHomeShell({
           onSelectSession={handleSelectSession}
         />
 
-        <SidebarInset className="bg-[#1f1f1f]">
+        <SidebarInset className="bg-app-canvas">
           <HomeSidebarTrigger />
 
           <div className="min-h-[100dvh]">{children}</div>

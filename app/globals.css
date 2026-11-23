@@ -5,6 +5,7 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  --app-canvas: #1f1f1f;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -30,13 +31,13 @@
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar: var(--app-canvas);
+  --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.205 0 0);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: var(--sidebar-foreground);
+  --sidebar-border: oklch(0.36 0 0);
   --sidebar-ring: oklch(0.708 0 0);
 }
 
@@ -65,19 +66,13 @@
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.269 0 0);
-  --sidebar-ring: oklch(0.439 0 0);
 }
 
 @theme inline {
   --font-sans: ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --color-app-canvas: var(--app-canvas);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -122,5 +117,42 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  .glass-surface {
+    --glass-surface-filter: blur(12px) saturate(1.4) brightness(1.04);
+    --glass-surface-refraction: 1;
+    --glass-surface-frost: saturate(1);
+    position: relative;
+    -webkit-backdrop-filter: var(--glass-surface-filter);
+    backdrop-filter: var(--glass-surface-filter);
+  }
+
+  .glass-surface-sidebar {
+    --glass-surface-filter: blur(8px);
+    --glass-surface-refraction: 0.22;
+    --glass-surface-frost: blur(4px);
+  }
+
+  .glass-surface::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    box-shadow:
+      inset 0 1px rgb(255 255 255 / 0.3),
+      inset 0 -1px rgb(255 255 255 / 0.08),
+      inset 0 0 2px 1px rgb(255 255 255 / 0.12),
+      inset 0 0 12px 3px rgb(255 255 255 / 0.06);
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    .glass-surface {
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
   }
 }

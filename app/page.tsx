@@ -25,7 +25,7 @@ export default async function HomePage() {
           <Button
             asChild
             size="lg"
-            className="pointer-events-auto h-12 rounded-full bg-black px-7 text-white shadow-[0_18px_50px_rgba(0,0,0,0.18)] hover:bg-black/88"
+            className="pointer-events-auto h-12 rounded-full bg-black/86 px-7 text-white shadow-[0_18px_50px_rgba(0,0,0,0.18)] hover:bg-black/88"
           >
             <Link href="/sign-up">Get Started</Link>
           </Button>

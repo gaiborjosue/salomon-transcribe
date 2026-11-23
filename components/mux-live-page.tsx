@@ -148,6 +148,7 @@ function SensitiveField({
           ) : null}
         </div>
         <Button
+          glass
           variant="ghost"
           size="icon"
           className="h-11 w-11 rounded-2xl border border-white/10 bg-white/[0.03] text-white/70 hover:bg-white/10 hover:text-white"
@@ -216,6 +217,7 @@ function InfoValueRow({
         </div>
       </div>
       <Button
+        glass
         variant="ghost"
         size="icon"
         className="h-8 w-8 shrink-0 self-center rounded-full border border-white/10 bg-white/[0.03] text-white/60 hover:bg-white/10 hover:text-white"
@@ -283,6 +285,7 @@ function InlineAdvancedField({
           {value}
         </div>
         <Button
+          glass
           variant="ghost"
           size="icon"
           className="h-8 w-8 shrink-0 rounded-full border border-white/10 bg-white/[0.03] text-white/60 hover:bg-white/10 hover:text-white"
@@ -769,6 +772,7 @@ export function MuxLivePage() {
         <div className="flex items-center gap-4">
           <div className="flex shrink-0">
             <Button
+              glass
               asChild
               variant="ghost"
               className={`rounded-full border px-4 transition-all ${
@@ -783,6 +787,7 @@ export function MuxLivePage() {
           <div className="flex min-w-0 flex-1 justify-center">
             {activeSnapshot?.sharedSessionCode ? (
               <Button
+                glass
                 variant="ghost"
                 className="h-10 max-w-full rounded-full border border-white/10 bg-black/20 px-4 text-white/72 hover:bg-white/8 hover:text-white"
                 onClick={() => {
@@ -865,7 +870,7 @@ export function MuxLivePage() {
                 <Button
                   onClick={handleCreate}
                   disabled={isCreating}
-                  className="h-12 rounded-full bg-white text-black hover:bg-white/92"
+                  className="h-12 rounded-full bg-white/86 text-black hover:bg-white/92"
                 >
                   {isCreating ? "Creating Mux live stream..." : "Create Mux live stream"}
                 </Button>
@@ -883,6 +888,7 @@ export function MuxLivePage() {
                       </p>
                     </div>
                     <Button
+                      glass
                       onClick={() => void loadAvailableSessions()}
                       variant="ghost"
                       size="icon"
@@ -915,6 +921,7 @@ export function MuxLivePage() {
                           </div>
                         </div>
                         <Button
+                          glass
                           onClick={() => void handleResume(sessionItem)}
                           variant="ghost"
                           className="h-10 rounded-full border border-white/10 bg-black/20 px-4 text-white/72 hover:bg-white/8 hover:text-white"
@@ -983,6 +990,7 @@ export function MuxLivePage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
+                    glass
                     onClick={() => void refreshSession()}
                     variant="ghost"
                     disabled={isDeleted || isEndingSession}
@@ -994,6 +1002,7 @@ export function MuxLivePage() {
                     Refresh status
                   </Button>
                   <Button
+                    glass
                     onClick={handlePauseToggle}
                     variant="ghost"
                     disabled={isDeleted || isEndingSession}
@@ -1007,6 +1016,7 @@ export function MuxLivePage() {
                     {status === "paused" ? "Resume session" : "Pause session"}
                   </Button>
                   <Button
+                    glass
                     onClick={handleStop}
                     variant="ghost"
                     disabled={isDeleted || isEndingSession}
@@ -1041,6 +1051,7 @@ export function MuxLivePage() {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex flex-1 items-start gap-3">
                   <Button
+                    glass
                     variant="ghost"
                     className="h-10 shrink-0 rounded-full border border-white/10 bg-black/20 px-4 text-white/70 hover:bg-white/8 hover:text-white"
                     onClick={() => setShowAdvanced((value) => !value)}
@@ -1092,6 +1103,7 @@ export function MuxLivePage() {
                 </div>
 
                 <Button
+                  glass
                   asChild
                   variant="ghost"
                   className="h-10 shrink-0 rounded-full border border-white/10 bg-black/20 px-4 text-white/70 hover:bg-white/8 hover:text-white"

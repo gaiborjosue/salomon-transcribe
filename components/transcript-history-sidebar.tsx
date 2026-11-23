@@ -2,15 +2,15 @@
 
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   Archive,
   ChevronDown,
   CircleUserRound,
+  EllipsisVertical,
   History,
   LogOut,
   Mic,
-  MoreHorizontal,
   PanelsTopLeft,
   Plus,
   RadioTower,
@@ -19,6 +19,7 @@ import {
   Trash2,
   Type,
   Waves,
+  X,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -33,12 +34,19 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
+import {
+  PopoverCloseButton,
+  PopoverContent,
+  PopoverLabel,
+  PopoverRoot,
+  PopoverTrigger,
+} from "@/components/ui/cult-popover"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,6 +56,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { GlassSurfaceFilter } from "@/components/ui/glass-surface"
 import { Input } from "@/components/ui/input"
 import {
   Sidebar,
@@ -59,27 +68,28 @@ import {
   SidebarHeader,
   SidebarInput,
   SidebarMenu,
-  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarSeparator,
 } from "@/components/ui/sidebar"
 import { signOut } from "@/lib/auth-client"
 import type {
   TranscriptSessionListPayload,
   TranscriptSessionSummary,
 } from "@/lib/transcript-session-types"
+import { cn } from "@/lib/utils"
 
-function formatRelativeDate(timestamp: number) {
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    month: "short",
-    day: "numeric",
-  })
+const sessionDateFormatter = new Intl.DateTimeFormat("en-US", {
+  hour: "numeric",
+  minute: "2-digit",
+  month: "short",
+  day: "numeric",
+})
 
-  return formatter.format(new Date(timestamp))
-}
+const footerButtonClass =
+  "h-9 min-w-0 justify-between gap-1 rounded-xl border border-sidebar-border/70 bg-sidebar-accent/25 px-2 text-xs text-sidebar-foreground/78 hover:bg-sidebar-accent/86 hover:text-sidebar-foreground"
+
+const advancedLinkClass =
+  "h-8 w-full justify-start rounded-lg px-2 text-xs text-sidebar-foreground/80 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground dark:hover:bg-sidebar-foreground/10"
 
 function sessionIcon(sourceType: TranscriptSessionSummary["sourceType"]) {
   if (sourceType === "microphone") {
@@ -136,6 +146,9 @@ export function TranscriptHistorySidebar({
 }) {
   const router = useRouter()
   const [filter, setFilter] = useState("")
+  const [searchOpen, setSearchOpen] = useState(false)
+  const searchControlRef = useRef<HTMLDivElement>(null)
+  const searchButtonRef = useRef<HTMLButtonElement>(null)
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
   const [draftTitle, setDraftTitle] = useState("")
   const [deleteCandidate, setDeleteCandidate] = useState<TranscriptSessionSummary | null>(
@@ -166,6 +179,12 @@ export function TranscriptHistorySidebar({
     }
   }, [filter, sessions])
   const hasArchivedSessions = filteredSessions.archived.length > 0
+
+  function closeSearch() {
+    setFilter("")
+    setSearchOpen(false)
+    searchButtonRef.current?.focus({ preventScroll: true })
+  }
 
   async function handleDeleteAccount() {
     setIsDeletingAccount(true)
@@ -226,6 +245,7 @@ export function TranscriptHistorySidebar({
             {items.map((session) => {
               const Icon = sessionIcon(session.sourceType)
               const isEditing = editingSessionId === session.id
+              const updatedAt = new Date(session.updatedAt)
 
               return (
                 <SidebarMenuItem key={session.id}>
@@ -255,69 +275,75 @@ export function TranscriptHistorySidebar({
                           }
                           setEditingSessionId(null)
                         }}
-                        className="h-8"
+                        className="h-8 border-sidebar-border bg-sidebar-accent text-sidebar-foreground"
                       />
                     </div>
                   ) : (
-                    <>
+                    <div className="grid grid-cols-[minmax(0,1fr)_2rem] grid-rows-[1.75rem_auto]">
                       <SidebarMenuButton
+                        type="button"
+                        size="sm"
                         isActive={selectedSessionId === session.id}
                         onClick={() => onSelectSession(session)}
                         disabled={disableSelection}
                         tooltip={session.title}
+                        aria-label={session.title}
+                        className="col-span-2 col-start-1 row-span-2 row-start-1 h-auto flex-col items-stretch gap-0 p-0 text-sm"
                       >
-                        <Icon />
-                        <span>{session.title}</span>
-                      </SidebarMenuButton>
-                      <SidebarMenuAction asChild showOnHover>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <button aria-label={`Manage ${session.title}`}>
-                              <MoreHorizontal />
-                            </button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-44">
-                            <DropdownMenuGroup>
-                              <DropdownMenuItem
-                                onClick={() => {
-                                  setEditingSessionId(session.id)
-                                  setDraftTitle(session.title)
-                                }}
-                              >
-                                <Type />
-                                Rename
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => onArchiveSession(session, !archived)}
-                              >
-                                <Archive />
-                                {archived ? "Restore" : "Archive"}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                variant="destructive"
-                                onClick={() => setDeleteCandidate(session)}
-                              >
-                                <Trash2 />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuGroup>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </SidebarMenuAction>
-                      <div className="px-2 pb-2 group-data-[collapsible=icon]:hidden">
-                        <div className="flex items-center gap-2 text-[11px] text-sidebar-foreground/45">
-                          <Badge variant="secondary" className="rounded-full px-2 py-0 text-[10px]">
+                        <span className="h-7 shrink-0 truncate pr-8 pl-2 leading-7">{session.title}</span>
+                        <span className="flex items-center justify-between gap-2 px-2 pb-1">
+                          <Badge variant="secondary" className="rounded-full px-1.5 py-0 text-[10px] [&>svg]:size-2.5">
+                            <Icon aria-hidden="true" />
                             {sourceLabel(session.sourceType)}
                           </Badge>
-                          <span>{formatRelativeDate(session.updatedAt)}</span>
-                        </div>
-                        {session.previewText ? (
-                          <div className="mt-1 line-clamp-2 text-xs leading-5 text-sidebar-foreground/52">
-                            {session.previewText}
-                          </div>
-                        ) : null}
-                      </div>
-                    </>
+                          <time
+                            dateTime={updatedAt.toISOString()}
+                            className="truncate text-right text-[11px] font-normal text-sidebar-foreground/65"
+                          >
+                            {sessionDateFormatter.format(updatedAt)}
+                          </time>
+                        </span>
+                      </SidebarMenuButton>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={`Manage ${session.title}`}
+                            className="z-10 col-start-2 row-start-1 size-7 justify-self-center text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                          >
+                            <EllipsisVertical aria-hidden="true" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44">
+                          <DropdownMenuGroup>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setEditingSessionId(session.id)
+                                setDraftTitle(session.title)
+                              }}
+                            >
+                              <Type />
+                              Rename
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => onArchiveSession(session, !archived)}
+                            >
+                              <Archive />
+                              {archived ? "Restore" : "Archive"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              variant="destructive"
+                              onClick={() => setDeleteCandidate(session)}
+                            >
+                              <Trash2 />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuGroup>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   )}
                 </SidebarMenuItem>
               )
@@ -330,28 +356,82 @@ export function TranscriptHistorySidebar({
 
   return (
     <>
-      <Sidebar variant="floating" collapsible="offcanvas">
-        <SidebarHeader>
+      <Sidebar
+        variant="floating"
+        collapsible="offcanvas"
+        onEscapeKeyDown={(event) => {
+          if (searchOpen && event.target instanceof Node && searchControlRef.current?.contains(event.target)) {
+            event.preventDefault()
+            closeSearch()
+          } else if (advancedOpen) {
+            event.preventDefault()
+            setAdvancedOpen(false)
+          }
+        }}
+      >
+        <SidebarHeader className="flex-row items-center">
           <Button
+            type="button"
             onClick={onClearSelection}
-            className="h-9 justify-start rounded-xl group-data-[collapsible=icon]:size-9 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
+            className="h-9 min-w-0 flex-1 justify-start overflow-hidden rounded-xl has-[>svg]:px-2.5"
+            aria-label="New transcription"
             title="New transcription"
           >
-            <Plus data-icon="inline-start" />
-            <span className="group-data-[collapsible=icon]:hidden">New transcription</span>
+            <Plus aria-hidden="true" />
+            {!searchOpen && <span className="truncate">New transcription</span>}
           </Button>
-          <div className="relative group-data-[collapsible=icon]:hidden">
-            <Search className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sidebar-foreground/45" />
-            <SidebarInput
-              value={filter}
-              onChange={(event) => setFilter(event.target.value)}
-              placeholder="Search sessions"
-              className="pl-9"
-            />
+          <div
+            ref={searchControlRef}
+            role="search"
+            aria-label="Transcript sessions"
+            className={cn(
+              "relative h-9 min-w-0 flex-none transition-[flex-basis] duration-200 ease-out motion-reduce:transition-none",
+              searchOpen ? "basis-[calc(100%_-_2.75rem)]" : "basis-9",
+            )}
+            onBlur={(event) => {
+              if (!filter.trim() && !event.currentTarget.contains(event.relatedTarget)) {
+                setFilter("")
+                setSearchOpen(false)
+              }
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Escape" && searchOpen && !event.defaultPrevented) {
+                event.preventDefault()
+                closeSearch()
+              }
+            }}
+          >
+            {searchOpen && (
+              <SidebarInput
+                autoFocus
+                type="search"
+                aria-label="Search sessions"
+                placeholder="Search sessions"
+                value={filter}
+                onChange={(event) => setFilter(event.target.value)}
+                className="h-9 rounded-full pr-9 [&::-webkit-search-cancel-button]:hidden"
+              />
+            )}
+            <Button
+              ref={searchButtonRef}
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label={searchOpen ? "Close search" : "Search sessions"}
+              aria-expanded={searchOpen}
+              className={cn(
+                "absolute inset-y-0 right-0 rounded-full text-sidebar-foreground/72 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+                !searchOpen && "border border-sidebar-border bg-sidebar-accent",
+              )}
+              onPointerDown={(event) => {
+                if (searchOpen) event.preventDefault()
+              }}
+              onClick={searchOpen ? closeSearch : () => setSearchOpen(true)}
+            >
+              {searchOpen ? <X aria-hidden="true" /> : <Search aria-hidden="true" />}
+            </Button>
           </div>
         </SidebarHeader>
-
-        <SidebarSeparator />
 
         <SidebarContent className="overflow-hidden">
           <div className="flex min-h-0 flex-1 flex-col">
@@ -366,7 +446,7 @@ export function TranscriptHistorySidebar({
                     type="button"
                     variant="ghost"
                     aria-disabled={!hasArchivedSessions}
-                    className="h-10 w-full justify-between rounded-xl border border-sidebar-border/70 bg-sidebar-accent/25 px-3 text-sidebar-foreground/72 hover:bg-sidebar-accent hover:text-sidebar-foreground disabled:opacity-45"
+                    className="h-9 w-full justify-between px-2 text-sidebar-foreground/72 hover:bg-sidebar-accent/75 hover:text-sidebar-foreground aria-disabled:opacity-60"
                     title="Archived sessions"
                     onClick={(event) => {
                       if (!hasArchivedSessions) {
@@ -380,7 +460,7 @@ export function TranscriptHistorySidebar({
                       <span>Archived</span>
                     </span>
                     <span className="flex items-center gap-2">
-                      <span className="rounded-full border border-sidebar-border/70 px-2 py-0.5 text-[11px] text-sidebar-foreground/52">
+                      <span className="text-[11px] text-sidebar-foreground/65 tabular-nums">
                         {filteredSessions.archived.length}
                       </span>
                       <ChevronDown
@@ -399,115 +479,106 @@ export function TranscriptHistorySidebar({
           </div>
         </SidebarContent>
 
-        <SidebarSeparator />
+        <SidebarFooter className="grid grid-cols-2">
+          <PopoverRoot open={advancedOpen} onOpenChange={setAdvancedOpen} className="z-10 min-w-0">
+            <PopoverTrigger
+              className={cn(
+                buttonVariants({ variant: "ghost" }),
+                footerButtonClass,
+                "glass-surface w-full dark:border-sidebar-border/70 dark:bg-sidebar-accent/25 dark:text-sidebar-foreground/78 dark:hover:bg-sidebar-accent/86",
+              )}
+            >
+              <span className="flex min-w-0 items-center gap-1">
+                <PanelsTopLeft aria-hidden="true" className="size-3.5" />
+                <span className="truncate">Advanced</span>
+              </span>
+              <ChevronDown aria-hidden="true" className="size-3 rotate-180" />
+              <GlassSurfaceFilter />
+            </PopoverTrigger>
+            <PopoverContent className="glass-surface bottom-0 left-0 h-auto w-full border-sidebar-border bg-sidebar-accent/95 p-1 pt-9 text-sidebar-foreground shadow-lg dark:bg-sidebar-accent/95">
+              <GlassSurfaceFilter />
+              <PopoverLabel className="top-0 left-2 flex h-9 items-center gap-1 text-xs font-medium text-sidebar-foreground dark:text-sidebar-foreground">
+                <PanelsTopLeft aria-hidden="true" className="size-3.5" />
+                Advanced
+              </PopoverLabel>
+              <Button asChild variant="ghost" className={advancedLinkClass}>
+                <Link href="/advanced/rtmp" onNavigate={() => setAdvancedOpen(false)}>
+                  <RadioTower aria-hidden="true" />
+                  RTMP
+                </Link>
+              </Button>
+              <Button asChild variant="ghost" className={advancedLinkClass}>
+                <Link href="/advanced/mux" onNavigate={() => setAdvancedOpen(false)}>
+                  <Waves aria-hidden="true" />
+                  Mux
+                </Link>
+              </Button>
+              <PopoverCloseButton className="absolute top-1.5 right-1 flex size-6 justify-center rounded-md text-sidebar-foreground/70 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-none" />
+            </PopoverContent>
+          </PopoverRoot>
 
-        <SidebarFooter>
-          <div className="flex flex-col gap-2 rounded-2xl border border-sidebar-border/70 bg-sidebar-accent/25 p-2 group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0">
-            <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
-              <CollapsibleTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="h-11 w-full justify-between rounded-xl border border-sidebar-border/70 bg-background/20 px-3 text-sidebar-foreground/78 hover:bg-sidebar-accent hover:text-sidebar-foreground group-data-[collapsible=icon]:size-10 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:border-sidebar-border/60 group-data-[collapsible=icon]:px-0"
-                  title="Advanced"
-                >
-                  <span className="flex items-center gap-2">
-                    <PanelsTopLeft data-icon="inline-start" />
-                    <span className="group-data-[collapsible=icon]:hidden">Advanced</span>
-                  </span>
-                  <ChevronDown
-                    className={`transition-transform duration-200 group-data-[collapsible=icon]:hidden ${advancedOpen ? "rotate-180" : ""}`}
-                  />
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down group-data-[collapsible=icon]:hidden">
-                <div className="flex flex-col gap-2 pt-2">
-                  <Button
-                    asChild
-                    variant="ghost"
-                    className="h-10 w-full justify-start rounded-xl border border-sidebar-border/60 bg-background/10 px-3 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                  >
-                    <Link href="/advanced/rtmp">
-                      <RadioTower data-icon="inline-start" />
-                      RTMP
-                    </Link>
-                  </Button>
-                  <Button
-                    asChild
-                    variant="ghost"
-                    className="h-10 w-full justify-start rounded-xl border border-sidebar-border/60 bg-background/10 px-3 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                  >
-                    <Link href="/advanced/mux">
-                      <Waves data-icon="inline-start" />
-                      Mux
-                    </Link>
-                  </Button>
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
-
-            <DropdownMenu open={profileOpen} onOpenChange={setProfileOpen}>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="h-11 w-full justify-between rounded-xl border border-sidebar-border/70 bg-background/20 px-3 text-sidebar-foreground/78 hover:bg-sidebar-accent hover:text-sidebar-foreground group-data-[collapsible=icon]:size-10 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:border-sidebar-border/60 group-data-[collapsible=icon]:px-0"
-                  title="Profile"
-                >
-                  <span className="flex items-center gap-2">
-                    <CircleUserRound data-icon="inline-start" />
-                    <span className="group-data-[collapsible=icon]:hidden">Profile</span>
-                  </span>
-                  <ChevronDown
-                    className={`transition-transform duration-200 group-data-[collapsible=icon]:hidden ${profileOpen ? "rotate-0" : "rotate-180"}`}
-                  />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="end"
-                side="top"
-                className="w-64 rounded-xl"
+          <DropdownMenu open={profileOpen} onOpenChange={setProfileOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                glass
+                type="button"
+                variant="ghost"
+                className={footerButtonClass}
+                title="Profile"
               >
-                <DropdownMenuLabel className="flex flex-col gap-1">
-                  <span className="text-sm font-medium text-foreground">Profile</span>
-                  <span className="truncate text-xs font-normal text-muted-foreground">
-                    {userLabel}
-                  </span>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuGroup>
-                  <DropdownMenuItem
-                    onSelect={(event) => {
-                      event.preventDefault()
-                      setProfileOpen(false)
-                      setAccountSettingsOpen(true)
-                    }}
-                  >
-                    <Settings />
-                    Advanced settings
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => {
-                      void (async () => {
-                        setIsSigningOut(true)
-                        try {
-                          await signOut()
-                          router.replace("/sign-in")
-                          router.refresh()
-                        } finally {
-                          setIsSigningOut(false)
-                        }
-                      })()
-                    }}
-                    disabled={isSigningOut}
-                  >
-                    <LogOut />
-                    {isSigningOut ? "Signing out..." : "Log out"}
-                  </DropdownMenuItem>
-                </DropdownMenuGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+                <span className="flex min-w-0 items-center gap-1">
+                  <CircleUserRound className="size-3.5" />
+                  <span className="truncate">Profile</span>
+                </span>
+                <ChevronDown
+                  className={`size-3 transition-transform duration-200 ${profileOpen ? "rotate-0" : "rotate-180"}`}
+                />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              side="top"
+              className="w-64 rounded-xl"
+            >
+              <DropdownMenuLabel className="flex flex-col gap-1">
+                <span className="text-sm font-medium text-foreground">Profile</span>
+                <span className="truncate text-xs font-normal text-muted-foreground">
+                  {userLabel}
+                </span>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuGroup>
+                <DropdownMenuItem
+                  onSelect={(event) => {
+                    event.preventDefault()
+                    setProfileOpen(false)
+                    setAccountSettingsOpen(true)
+                  }}
+                >
+                  <Settings />
+                  Advanced settings
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    void (async () => {
+                      setIsSigningOut(true)
+                      try {
+                        await signOut()
+                        router.replace("/sign-in")
+                        router.refresh()
+                      } finally {
+                        setIsSigningOut(false)
+                      }
+                    })()
+                  }}
+                  disabled={isSigningOut}
+                >
+                  <LogOut />
+                  {isSigningOut ? "Signing out..." : "Log out"}
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </SidebarFooter>
       </Sidebar>
 

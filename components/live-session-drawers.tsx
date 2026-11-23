@@ -67,7 +67,7 @@ export function ShareSessionDrawer({
           <Button
             type="button"
             onClick={onCopyCode}
-            className="h-12 rounded-xl bg-white text-black hover:bg-white/92"
+            className="h-12 rounded-xl bg-white/86 text-black hover:bg-white/92"
           >
             <Copy className="h-4 w-4" />
             Copy code
@@ -147,7 +147,7 @@ export function JoinSessionDrawer({
           <Button
             type="button"
             onClick={onJoin}
-            className="h-12 rounded-xl bg-white text-black hover:bg-white/92"
+            className="h-12 rounded-xl bg-white/86 text-black hover:bg-white/92"
           >
             Join session
           </Button>

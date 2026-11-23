@@ -1063,7 +1063,7 @@ export default function LiveTranslationHome() {
   }, [joinCode, joinDrawerOpen])
 
   return (
-    <div className="dark text-foreground min-h-[100dvh] w-full bg-[#1f1f1f]">
+    <div className="dark text-foreground min-h-[100dvh] w-full bg-app-canvas">
       {(selectedSource === "microphone" || activeSource === "microphone") && (
         <LiveTranslationMicrophoneController
           controllerRef={microphoneControllerRef}
@@ -1140,6 +1140,7 @@ export default function LiveTranslationHome() {
             <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center pb-6 sm:pb-8">
               <div className="pointer-events-auto">
                 <Button
+                  glass
                   type="button"
                   variant="ghost"
                   onClick={() => setJoinDrawerOpen(true)}
