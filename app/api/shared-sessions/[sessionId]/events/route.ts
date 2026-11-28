@@ -108,6 +108,9 @@ export async function GET(
       }
 
       request.signal.addEventListener("abort", abortHandler, { once: true })
+      if (request.signal.aborted) {
+        cleanup()
+      }
     },
     cancel() {
       cleanupStream()
@@ -119,6 +122,7 @@ export async function GET(
       "Cache-Control": "no-cache, no-transform",
       Connection: "keep-alive",
       "Content-Type": "text/event-stream",
+      "X-Accel-Buffering": "no",
     },
   })
 }

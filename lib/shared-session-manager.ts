@@ -30,6 +30,7 @@ type SharedSessionEvent =
 interface SharedSession {
   code: string
   createdAt: number
+  persistedUpdatedAt: number
   entries: TranscriptEntry[]
   hostToken: string
   id: string
@@ -43,6 +44,7 @@ interface SharedSession {
 
 const MAX_ENTRIES = 500
 const SESSION_TTL_MS = 6 * 60 * 60 * 1000
+const SESSION_REFRESH_INTERVAL_MS = 1_000
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 const CODE_LENGTH = 6
 function generateRawCode() {
@@ -60,6 +62,41 @@ function generateCode() {
 class SharedSessionManager {
   private readonly sessions = new Map<string, SharedSession>()
   private readonly sessionsByCode = new Map<string, string>()
+  private readonly refreshTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+  private stopRefreshing(sessionId: string) {
+    const timer = this.refreshTimers.get(sessionId)
+    if (timer) {
+      clearTimeout(timer)
+      this.refreshTimers.delete(sessionId)
+    }
+  }
+
+  private scheduleRefresh(session: SharedSession) {
+    if (
+      this.refreshTimers.has(session.id) ||
+      session.listeners.size === 0 ||
+      session.status === "ended"
+    ) {
+      return
+    }
+
+    // One non-overlapping refresh per session, not per viewer. Host writes may
+    // reach a different Next.js process than the one holding the SSE connection.
+    const timer = setTimeout(async () => {
+      try {
+        await this.hydrateById(session.id)
+      } catch (error) {
+        console.error("[shared-sessions] live refresh failed", error)
+      } finally {
+        if (this.refreshTimers.get(session.id) === timer) {
+          this.refreshTimers.delete(session.id)
+          this.scheduleRefresh(session)
+        }
+      }
+    }, SESSION_REFRESH_INTERVAL_MS)
+    this.refreshTimers.set(session.id, timer)
+  }
 
   private cleanupExpiredSessions() {
     const now = Date.now()
@@ -70,6 +107,7 @@ class SharedSessionManager {
       }
 
       if (session.status === "ended" || now - session.updatedAt > SESSION_TTL_MS) {
+        this.stopRefreshing(id)
         this.sessions.delete(id)
         this.sessionsByCode.delete(session.code)
       }
@@ -124,11 +162,6 @@ class SharedSessionManager {
   private async hydrateById(id: string) {
     this.cleanupExpiredSessions()
 
-    const existing = this.sessions.get(id)
-    if (existing) {
-      return existing
-    }
-
     const session = await prisma.sharedSession.findUnique({
       where: { id },
     })
@@ -137,10 +170,38 @@ class SharedSessionManager {
       return null
     }
 
+    const persistedUpdatedAt = session.updatedAt.getTime()
+    const existing = this.sessions.get(id)
+    if (existing && existing.persistedUpdatedAt >= persistedUpdatedAt) {
+      return existing
+    }
+
+    const entries = await this.loadRecentEntries(session.id)
+    // A local write or another hydration may have finished while reading the
+    // database. Keep its newer state and, importantly, its existing listeners.
+    const current = this.sessions.get(id)
+    if (current) {
+      if (current.persistedUpdatedAt >= persistedUpdatedAt) {
+        return current
+      }
+
+      current.entries = entries
+      current.persistedUpdatedAt = persistedUpdatedAt
+      current.sourceTitle = session.sourceTitle ?? undefined
+      current.status = session.status
+      current.updatedAt = Math.max(current.updatedAt, persistedUpdatedAt)
+      this.emit(current, {
+        type: "snapshot",
+        snapshot: this.createSnapshot(current),
+      })
+      return current
+    }
+
     const hydrated: SharedSession = {
       code: session.code,
       createdAt: session.createdAt.getTime(),
-      entries: await this.loadRecentEntries(session.id),
+      persistedUpdatedAt,
+      entries,
       hostToken: session.hostToken,
       id: session.id,
       listeners: new Set(),
@@ -259,6 +320,7 @@ class SharedSessionManager {
     const session: SharedSession = {
       code: persisted.code,
       createdAt: persisted.createdAt.getTime(),
+      persistedUpdatedAt: persisted.updatedAt.getTime(),
       entries: persisted.entries.map((entry) => this.toEntry(entry)),
       hostToken: persisted.hostToken,
       id: persisted.id,
@@ -381,17 +443,16 @@ class SharedSessionManager {
       session.viewerCount += 1
     }
     session.updatedAt = Date.now()
-    listener({
-      type: "snapshot",
-      snapshot: this.createSnapshot(session),
-    })
     this.emit(session, {
       type: "snapshot",
       snapshot: this.createSnapshot(session),
     })
+    this.scheduleRefresh(session)
 
     return () => {
-      session.listeners.delete(listener)
+      if (!session.listeners.delete(listener)) {
+        return
+      }
       if (countAsViewer) {
         session.viewerCount = Math.max(0, session.viewerCount - 1)
       }
@@ -400,6 +461,9 @@ class SharedSessionManager {
         type: "snapshot",
         snapshot: this.createSnapshot(session),
       })
+      if (session.listeners.size === 0) {
+        this.stopRefreshing(sessionId)
+      }
       this.cleanupExpiredSessions()
     }
   }
@@ -418,8 +482,8 @@ class SharedSessionManager {
       return false
     }
 
-    await prisma.$transaction(async (tx) => {
-      await tx.sharedSessionEntry.create({
+    const persisted = await prisma.$transaction(async (tx) => {
+      const createdEntry = await tx.sharedSessionEntry.create({
         data: {
           lowConfidence: entry.lowConfidence,
           speakerId: entry.speakerId,
@@ -429,17 +493,20 @@ class SharedSessionManager {
         },
       })
 
-      await tx.sharedSession.update({
+      const updatedSession = await tx.sharedSession.update({
         where: { id: sessionId },
         data: {
           updatedAt: new Date(),
         },
       })
+      return { entry: createdEntry, updatedAt: updatedSession.updatedAt }
     })
 
-    session.entries = [...session.entries, entry].slice(-MAX_ENTRIES)
+    const persistedEntry = this.toEntry(persisted.entry)
+    session.entries = [...session.entries, persistedEntry].slice(-MAX_ENTRIES)
+    session.persistedUpdatedAt = persisted.updatedAt.getTime()
     session.updatedAt = Date.now()
-    this.emit(session, { type: "entry", entry })
+    this.emit(session, { type: "entry", entry: persistedEntry })
     return true
   }
 
@@ -461,11 +528,12 @@ class SharedSessionManager {
 
     const nextEntries = entries.slice(-MAX_ENTRIES)
 
-    await prisma.$transaction(async (tx) => {
-      await tx.sharedSession.update({
+    const persisted = await prisma.$transaction(async (tx) => {
+      const updatedSession = await tx.sharedSession.update({
         where: { id: sessionId },
         data: {
           sourceTitle,
+          updatedAt: new Date(),
         },
       })
 
@@ -484,9 +552,17 @@ class SharedSessionManager {
           })),
         })
       }
+
+      const rows = await tx.sharedSessionEntry.findMany({
+        where: { sessionId },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: MAX_ENTRIES,
+      })
+      return { entries: rows.reverse(), updatedAt: updatedSession.updatedAt }
     })
 
-    session.entries = nextEntries
+    session.entries = persisted.entries.map((entry) => this.toEntry(entry))
+    session.persistedUpdatedAt = persisted.updatedAt.getTime()
     session.sourceTitle = sourceTitle
     session.updatedAt = Date.now()
     this.emit(session, {
@@ -510,7 +586,7 @@ class SharedSessionManager {
       return false
     }
 
-    await prisma.sharedSession.update({
+    const persisted = await prisma.sharedSession.update({
       where: { id: sessionId },
       data: {
         sourceTitle,
@@ -518,6 +594,7 @@ class SharedSessionManager {
     })
 
     session.sourceTitle = sourceTitle
+    session.persistedUpdatedAt = persisted.updatedAt.getTime()
     session.updatedAt = Date.now()
     this.emit(session, {
       type: "meta",
@@ -539,7 +616,7 @@ class SharedSessionManager {
       return false
     }
 
-    await prisma.sharedSession.update({
+    const persisted = await prisma.sharedSession.update({
       where: { id: sessionId },
       data: {
         endedAt: new Date(),
@@ -548,12 +625,14 @@ class SharedSessionManager {
     })
 
     session.status = "ended"
+    session.persistedUpdatedAt = persisted.updatedAt.getTime()
     session.updatedAt = Date.now()
     this.emit(session, {
       type: "meta",
       sourceTitle: session.sourceTitle,
       status: session.status,
     })
+    this.stopRefreshing(sessionId)
     return true
   }
 }
@@ -565,7 +644,7 @@ declare global {
   var __sharedSessionManagerVersion__: number | undefined
 }
 
-const SHARED_SESSION_MANAGER_VERSION = 4
+const SHARED_SESSION_MANAGER_VERSION = 5
 
 const shouldCreateManager =
   !globalThis.__sharedSessionManager__ ||

@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server"
 
 import { getApiSession } from "@/lib/api-auth"
-import { startLivestreamIngestSession } from "@/lib/livestream-ingest-client"
+import {
+  LivestreamIngestUnavailableError,
+  startLivestreamIngestSession,
+} from "@/lib/livestream-ingest-client"
 
 export async function POST(request: Request) {
   const session = await getApiSession(request)
@@ -26,6 +29,11 @@ export async function POST(request: Request) {
       sessionId,
     })
   } catch (error) {
+    if (error instanceof LivestreamIngestUnavailableError) {
+      console.error(error)
+      return NextResponse.json({ error: error.message }, { status: 503 })
+    }
+
     return NextResponse.json(
       {
         error:

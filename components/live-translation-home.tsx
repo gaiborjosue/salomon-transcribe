@@ -48,6 +48,7 @@ import type { LivestreamSessionSnapshot } from "@/lib/livestream-types"
 import type { TranscriptCaption, TranscriptEntry } from "@/lib/transcript-types"
 import type { TranscriptSessionSummary } from "@/lib/transcript-session-types"
 import { appendMergedTranscriptEntry } from "@/lib/transcript-entry-merge"
+import { createSharedSessionSync } from "@/lib/shared-session-sync"
 import {
   dedupeBoundaryText,
 } from "@/lib/transcript-text-utils"
@@ -146,6 +147,7 @@ export default function LiveTranslationHome() {
   const transcriptEntriesRef = useRef<TranscriptEntry[]>([])
   const stoppingRef = useRef(false)
   const lastHostSyncSignatureRef = useRef("")
+  const hostSyncQueueRef = useRef<ReturnType<typeof createSharedSessionSync> | null>(null)
   const hasAttemptedClipboardPrefillRef = useRef(false)
 
   useEffect(() => {
@@ -542,36 +544,24 @@ export default function LiveTranslationHome() {
   }, [hostShareSession, sourceTitle])
 
   const syncHostSharedSession = useCallback(
-    async (entries?: TranscriptEntry[], nextSourceTitle?: string) => {
-      const session = hostShareSession
+    async (
+      entries?: TranscriptEntry[],
+      nextSourceTitle?: string,
+      session = hostShareSession
+    ) => {
       if (!session) {
         return
       }
 
-      const syncEntries = entries ?? transcriptEntriesRef.current
-      const response = await fetch(`/api/shared-sessions/${session.id}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          entries: syncEntries,
-          hostToken: session.hostToken,
-          sourceTitle: nextSourceTitle ?? sourceTitle ?? undefined,
-          type: "sync",
-        }),
-      })
-
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as
-          | { error?: string }
-          | null
-        throw new Error(
-          typeof payload?.error === "string"
-            ? payload.error
-            : "Unable to sync the shared session."
-        )
+      if (!hostSyncQueueRef.current) {
+        hostSyncQueueRef.current = createSharedSessionSync()
       }
+      await hostSyncQueueRef.current({
+        entries: entries ?? transcriptEntriesRef.current,
+        hostToken: session.hostToken,
+        sessionId: session.id,
+        sourceTitle: nextSourceTitle ?? sourceTitle ?? undefined,
+      })
     },
     [hostShareSession, sourceTitle]
   )
@@ -583,6 +573,11 @@ export default function LiveTranslationHome() {
     }
 
     try {
+      // Flush the final transcript before ending, including segments finalized
+      // during disconnect after the live-sync effect has stopped running.
+      await syncHostSharedSession(transcriptEntriesRef.current, sourceTitle, session).catch(() => {
+        // Still end the share if its final sync fails during a network interruption.
+      })
       await fetch(`/api/shared-sessions/${session.id}`, {
         method: "POST",
         headers: {
@@ -600,7 +595,7 @@ export default function LiveTranslationHome() {
       setHostViewerCount(0)
       lastHostSyncSignatureRef.current = ""
     }
-  }, [hostShareSession])
+  }, [hostShareSession, sourceTitle, syncHostSharedSession])
 
   const handleOpenShareDrawer = useCallback(async () => {
     try {
@@ -608,8 +603,8 @@ export default function LiveTranslationHome() {
       if (!session) {
         return
       }
+      await syncHostSharedSession(transcriptEntriesRef.current, sourceTitle, session)
       setShareDrawerOpen(true)
-      await syncHostSharedSession(transcriptEntriesRef.current, sourceTitle)
     } catch (error) {
       toast.error(
         error instanceof Error

@@ -3,6 +3,19 @@ import type { LivestreamSessionSnapshot } from "@/lib/livestream-types"
 
 const DEFAULT_INGEST_BASE_URL = "http://127.0.0.1:4100"
 
+export class LivestreamIngestUnavailableError extends Error {
+  constructor(cause: unknown) {
+    const message = "Unable to reach the livestream ingest service."
+    super(
+      process.env.NODE_ENV === "development"
+        ? `${message} Start it with pnpm ingest:dev.`
+        : message,
+      { cause }
+    )
+    this.name = "LivestreamIngestUnavailableError"
+  }
+}
+
 function getConfiguredBaseUrl() {
   return (
     process.env.LIVESTREAM_INGEST_BASE_URL?.trim() ||
@@ -45,6 +58,8 @@ export async function startLivestreamIngestSession(streamUrl: string) {
     method: "POST",
     headers: getIngestControlHeaders(),
     body: JSON.stringify({ streamUrl }),
+  }).catch((cause: unknown) => {
+    throw new LivestreamIngestUnavailableError(cause)
   })
 
   if (!response.ok) {

@@ -14,19 +14,31 @@ single-use temporary key issued by the signed-in app.
 
 ## Local run
 
-1. Start MediaMTX:
+### YouTube Live
+
+Install `ffmpeg` and a current `yt-dlp`, and make sure both are on your `PATH`.
+Use Node.js 22 or newer for YouTube extraction. If you install `yt-dlp` from
+PyPI, use `yt-dlp[default]` to include the YouTube JavaScript challenge solver.
+
+Set `SONIOX_API_KEY` in the repo root `.env`. Run `pnpm dev` for the app and
+`pnpm ingest:dev` in another terminal for the worker. The worker's health check
+is at `http://127.0.0.1:4100/health` by default.
+
+Select **YouTube Live** in the app and enter the stream URL.
+
+### RTMP
+
+Start MediaMTX and the ingest worker from the repo root.
 
 ```bash
 mediamtx ingest/mediamtx.yml
 ```
 
-2. Start the ingest worker from the repo root:
-
 ```bash
 pnpm ingest:dev
 ```
 
-3. Open the advanced RTMP page:
+Open the advanced RTMP page.
 
 ```text
 http://localhost:3000/advanced/rtmp
